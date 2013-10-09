@@ -11,7 +11,10 @@
 #include <linux/gpio.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/of_platform.h>
 #include <linux/wl12xx.h>
+
+#include <linux/platform_data/pinctrl-single.h>
 
 #include "common.h"
 #include "common-board-devices.h"
@@ -104,6 +107,26 @@ static void __init omap5_uevm_legacy_init(void)
 }
 #endif
 
+static struct pcs_pdata pcs_pdata;
+
+void omap_pcs_legacy_init(int irq, void (*rearm)(void))
+{
+	pcs_pdata.irq = irq;
+	pcs_pdata.rearm = rearm;
+}
+
+struct of_dev_auxdata omap_auxdata_lookup[] __initdata = {
+#ifdef CONFIG_ARCH_OMAP3
+	OF_DEV_AUXDATA("ti,omap3-padconf", 0x48002030, "48002030.pinmux", &pcs_pdata),
+	OF_DEV_AUXDATA("ti,omap3-padconf", 0x48002a00, "48002a00.pinmux", &pcs_pdata),
+#endif
+#ifdef CONFIG_ARCH_OMAP4
+	OF_DEV_AUXDATA("ti,omap4-padconf", 0x4a100040, "4a100040.pinmux", &pcs_pdata),
+	OF_DEV_AUXDATA("ti,omap4-padconf", 0x4a31e040, "4a31e040.pinmux", &pcs_pdata),
+#endif
+	{ /* sentinel */ },
+};
+
 static struct pdata_init pdata_quirks[] __initdata = {
 #ifdef CONFIG_ARCH_OMAP3
 	{ "nokia,omap3-n9", hsmmc2_internal_input_clk, },
@@ -120,9 +143,13 @@ static struct pdata_init pdata_quirks[] __initdata = {
 	{ /* sentinel */ },
 };
 
-void __init pdata_quirks_init(void)
+void __init pdata_quirks_init(struct of_device_id *omap_dt_match_table)
 {
 	struct pdata_init *quirks = pdata_quirks;
+
+	omap_sdrc_init(NULL, NULL);
+	of_platform_populate(NULL, omap_dt_match_table,
+			     omap_auxdata_lookup, NULL);
 
 	while (quirks->compatible) {
 		if (of_machine_is_compatible(quirks->compatible)) {
