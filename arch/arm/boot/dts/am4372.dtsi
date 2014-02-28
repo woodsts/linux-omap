@@ -33,6 +33,11 @@
 			compatible = "arm,cortex-a9";
 			device_type = "cpu";
 			reg = <0>;
+
+			clocks = <&dpll_mpu_ck>;
+			clock-names = "cpu";
+
+			clock-latency = <300000>; /* From omap-cpufreq driver */
 		};
 	};
 
@@ -349,6 +354,13 @@
 			#interrupt-cells = <2>;
 			ti,hwmods = "gpio6";
 			status = "disabled";
+		};
+
+		hwspinlock: spinlock@480ca000 {
+			compatible = "ti,omap4-hwspinlock";
+			reg = <0x480ca000 0x1000>;
+			ti,hwmods = "spinlock";
+			#hwlock-cells = <1>;
 		};
 
 		i2c0: i2c@44e0b000 {
