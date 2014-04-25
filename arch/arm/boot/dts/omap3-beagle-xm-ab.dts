@@ -12,4 +12,5 @@
 	/* HS USB Port 2 Power enable was inverted with the xM C */
 	hsusb2_power: hsusb2_power_reg {
 		enable-active-high;
+	};
 };
