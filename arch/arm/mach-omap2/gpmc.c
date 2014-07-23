@@ -521,26 +521,42 @@ static int gpmc_cs_delete_mem(int cs)
  * "base". Returns 0 on success and appropriate negative error code
  * on failure.
  */
-static int gpmc_cs_remap(int cs, u32 base)
+static int gpmc_cs_remap(int cs, u32 base, u32 size)
 {
 	int ret;
-	u32 old_base, size;
 
 	if (cs > gpmc_cs_num) {
 		pr_err("%s: requested chip-select is disabled\n", __func__);
 		return -ENODEV;
 	}
 
-	/*
-	 * Make sure we ignore any device offsets from the GPMC partition
-	 * allocated for the chip select and that the new base confirms
-	 * to the GPMC 16MB minimum granularity.
-	 */ 
-	base &= ~(SZ_16M - 1);
+	/* allocate enough address-space under GPMC chip-select to device */
+	if (size > SZ_256M) {
+		pr_err("%s: memory device > 256MB not supported\n", __func__);
+		return -ENODEV;
+	} else if (size > SZ_128M) {
+		WARN((size != SZ_256M), "cs=%d: allocating 256MB\n", cs);
+		size = SZ_256M;
+	} else if (size > SZ_64M) {
+		WARN((size != SZ_128M), "cs=%d: allocating 128MB\n", cs);
+		size = SZ_128M;
+	} else if (size > SZ_32M) {
+		WARN((size != SZ_64M), "cs=%d: allocating 64MB\n", cs);
+		size = SZ_64M;
+	} else if (size > SZ_16M) {
+		WARN((size != SZ_32M), "cs=%d: allocating 64MB\n", cs);
+		size = SZ_32M;
+	} else {
+		WARN((size != SZ_16M), "cs=%d: allocating 64MB\n", cs);
+		size = SZ_16M;
+	}
 
-	gpmc_cs_get_memconf(cs, &old_base, &size);
-	if (base == old_base)
-		return 0;
+	/* base address should be aligned with address-space size */
+	if (base & (size - 1)) {
+		pr_err("base-addr=%x should be aligned to size=%x", base, size);
+		return -EINVAL;
+	}
+
 	gpmc_cs_disable_mem(cs);
 	ret = gpmc_cs_delete_mem(cs);
 	if (ret < 0)
@@ -1551,7 +1567,7 @@ static int gpmc_probe_generic_child(struct platform_device *pdev,
 	 * CS to this location. Once DT migration is complete should
 	 * just make gpmc_cs_request() map a specific address.
 	 */
-	ret = gpmc_cs_remap(cs, res.start);
+	ret = gpmc_cs_remap(cs, res.start, resource_size(&res));
 	if (ret < 0) {
 		dev_err(&pdev->dev, "cannot remap GPMC CS %d to %pa\n",
 			cs, &res.start);
