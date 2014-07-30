@@ -419,6 +419,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x4a0f4000 0x200>;
 			ti,hwmods = "mailbox1";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <3>;
 			ti,mbox-num-fifos = <8>;
 			status = "disabled";
@@ -428,6 +429,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x4883a000 0x200>;
 			ti,hwmods = "mailbox2";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -437,6 +439,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x4883c000 0x200>;
 			ti,hwmods = "mailbox3";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -446,6 +449,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x4883e000 0x200>;
 			ti,hwmods = "mailbox4";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -455,6 +459,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x48840000 0x200>;
 			ti,hwmods = "mailbox5";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -464,6 +469,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x48842000 0x200>;
 			ti,hwmods = "mailbox6";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -473,6 +479,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x48844000 0x200>;
 			ti,hwmods = "mailbox7";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -482,6 +489,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x48846000 0x200>;
 			ti,hwmods = "mailbox8";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -491,6 +499,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x4885e000 0x200>;
 			ti,hwmods = "mailbox9";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -500,6 +509,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x48860000 0x200>;
 			ti,hwmods = "mailbox10";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -509,6 +519,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x48862000 0x200>;
 			ti,hwmods = "mailbox11";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -518,6 +529,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x48864000 0x200>;
 			ti,hwmods = "mailbox12";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
@@ -527,6 +539,7 @@
 			compatible = "ti,omap4-mailbox";
 			reg = <0x48802000 0x200>;
 			ti,hwmods = "mailbox13";
+			#mbox-cells = <1>;
 			ti,mbox-num-users = <4>;
 			ti,mbox-num-fifos = <12>;
 			status = "disabled";
