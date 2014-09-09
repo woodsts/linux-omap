@@ -23,6 +23,7 @@
 #include <linux/gpio.h>
 #include <linux/input.h>
 #include <linux/gpio_keys.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <linux/regulator/fixed.h>
 #include <linux/regulator/machine.h>

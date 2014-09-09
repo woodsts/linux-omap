@@ -31,6 +31,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
 #include <linux/spi/spi.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/nand.h>

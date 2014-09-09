@@ -27,6 +27,7 @@
 #include <linux/platform_data/spi-omap2-mcspi.h>
 #include <linux/platform_data/omap-twl4030.h>
 #include <linux/usb/phy.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>

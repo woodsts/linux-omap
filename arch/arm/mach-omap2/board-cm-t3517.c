@@ -34,6 +34,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/mmc/host.h>
 #include <linux/can/platform/ti_hecc.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>

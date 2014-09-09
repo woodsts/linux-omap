@@ -22,6 +22,7 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include "soc.h"
 #include "common.h"

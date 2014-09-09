@@ -22,6 +22,7 @@
 #include <linux/usb/phy.h>
 #include <linux/usb/musb.h>
 #include <linux/platform_data/spi-omap2-mcspi.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>

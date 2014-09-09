@@ -15,6 +15,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
+#include <linux/irqchip/irq-omap-intc.h>
 #include <linux/usb/musb.h>
 
 #include <asm/mach-types.h>

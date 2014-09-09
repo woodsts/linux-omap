@@ -20,6 +20,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <linux/spi/spi.h>
 #include <linux/regulator/machine.h>

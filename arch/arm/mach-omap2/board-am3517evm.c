@@ -27,6 +27,7 @@
 #include <linux/mmc/host.h>
 #include <linux/usb/musb.h>
 #include <linux/platform_data/gpio-omap.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include "am35xx.h"
 #include <asm/mach-types.h>

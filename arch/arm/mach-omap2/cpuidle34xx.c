@@ -27,6 +27,7 @@
 #include <linux/export.h>
 #include <linux/cpu_pm.h>
 #include <asm/cpuidle.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include "powerdomain.h"
 #include "clockdomain.h"

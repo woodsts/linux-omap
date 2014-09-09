@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/platform_data/gpio-omap.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <linux/platform_data/at24.h>
 #include <linux/i2c/twl.h>
