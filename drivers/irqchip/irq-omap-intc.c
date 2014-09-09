@@ -17,16 +17,17 @@
 #include <linux/io.h>
 
 #include <asm/exception.h>
-#include <asm/mach/irq.h>
 #include <linux/irqdomain.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/irqchip/irq-omap-intc.h>
 
-#include "soc.h"
-#include "common.h"
-#include "../../drivers/irqchip/irqchip.h"
+#include "irqchip.h"
+
+/* Define these here for now until we drop all board-files */
+#define OMAP24XX_IC_BASE	0x480fe000
+#define OMAP34XX_IC_BASE	0x48200000
 
 /* selected INTC register offsets */
 
