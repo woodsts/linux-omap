@@ -30,6 +30,7 @@
 #include <linux/time.h>
 #include <linux/gpio.h>
 #include <linux/platform_data/gpio-omap.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <asm/fncpy.h>
 

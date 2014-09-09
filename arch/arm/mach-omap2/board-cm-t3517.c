@@ -34,6 +34,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/mmc/host.h>
 #include <linux/can/platform/ti_hecc.h>
+#include <linux/irqchip/irq-omap-intc.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -329,7 +330,6 @@ MACHINE_START(CM_T3517, "Compulab CM-T3517")
 	.map_io		= omap3_map_io,
 	.init_early	= am35xx_init_early,
 	.init_irq	= omap3_init_irq,
-	.handle_irq	= omap3_intc_handle_irq,
 	.init_machine	= cm_t3517_init,
 	.init_late	= am35xx_init_late,
 	.init_time	= omap3_gptimer_timer_init,
