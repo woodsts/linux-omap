@@ -52,75 +52,6 @@ static void __iomem *twd_base;
 
 #define IRQ_LOCALTIMER		29
 
-#ifdef CONFIG_OMAP4_ERRATA_I688
-/* Used to implement memory barrier on DRAM path */
-#define OMAP4_DRAM_BARRIER_VA			0xfe600000
-
-void __iomem *dram_sync, *sram_sync;
-
-static phys_addr_t paddr;
-static u32 size;
-
-void omap_bus_sync(void)
-{
-	if (dram_sync && sram_sync) {
-		writel_relaxed(readl_relaxed(dram_sync), dram_sync);
-		writel_relaxed(readl_relaxed(sram_sync), sram_sync);
-		isb();
-	}
-}
-EXPORT_SYMBOL(omap_bus_sync);
-
-static int __init omap4_sram_init(void)
-{
-	struct device_node *np;
-	struct gen_pool *sram_pool;
-
-	np = of_find_compatible_node(NULL, NULL, "ti,omap4-mpu");
-	if (!np)
-		pr_warn("%s:Unable to allocate sram needed to handle errata I688\n",
-			__func__);
-	sram_pool = of_get_named_gen_pool(np, "sram", 0);
-	if (!sram_pool)
-		pr_warn("%s:Unable to get sram pool needed to handle errata I688\n",
-			__func__);
-	else
-		sram_sync = (void *)gen_pool_alloc(sram_pool, PAGE_SIZE);
-
-	return 0;
-}
-omap_arch_initcall(omap4_sram_init);
-
-/* Steal one page physical memory for barrier implementation */
-int __init omap_barrier_reserve_memblock(void)
-{
-
-	size = ALIGN(PAGE_SIZE, SZ_1M);
-	paddr = arm_memblock_steal(size, SZ_1M);
-
-	return 0;
-}
-
-void __init omap_barriers_init(void)
-{
-	struct map_desc dram_io_desc[1];
-
-	dram_io_desc[0].virtual = OMAP4_DRAM_BARRIER_VA;
-	dram_io_desc[0].pfn = __phys_to_pfn(paddr);
-	dram_io_desc[0].length = size;
-	dram_io_desc[0].type = MT_MEMORY_RW_SO;
-	iotable_init(dram_io_desc, ARRAY_SIZE(dram_io_desc));
-	dram_sync = (void __iomem *) dram_io_desc[0].virtual;
-
-	pr_info("OMAP4: Map 0x%08llx to 0x%08lx for dram barrier\n",
-		(long long) paddr, dram_io_desc[0].virtual);
-
-}
-#else
-void __init omap_barriers_init(void)
-{}
-#endif
-
 void gic_dist_disable(void)
 {
 	if (gic_dist_base_addr)
@@ -166,7 +97,7 @@ void __iomem *omap4_get_l2cache_base(void)
 	return l2cache_base;
 }
 
-static void omap4_l2c310_write_sec(unsigned long val, unsigned reg)
+void omap4_l2c310_write_sec(unsigned long val, unsigned reg)
 {
 	unsigned smc_op;
 
@@ -201,24 +132,10 @@ static void omap4_l2c310_write_sec(unsigned long val, unsigned reg)
 
 int __init omap_l2_cache_init(void)
 {
-	u32 aux_ctrl;
-
 	/* Static mapping, never released */
 	l2cache_base = ioremap(OMAP44XX_L2CACHE_BASE, SZ_4K);
 	if (WARN_ON(!l2cache_base))
 		return -ENOMEM;
-
-	/* 16-way associativity, parity disabled, way size - 64KB (es2.0 +) */
-	aux_ctrl = L2C_AUX_CTRL_SHARED_OVERRIDE |
-		   L310_AUX_CTRL_DATA_PREFETCH |
-		   L310_AUX_CTRL_INSTR_PREFETCH;
-
-	outer_cache.write_sec = omap4_l2c310_write_sec;
-	if (of_have_populated_dt())
-		l2x0_of_init(aux_ctrl, 0xcf9fffff);
-	else
-		l2x0_init(l2cache_base, aux_ctrl, 0xcf9fffff);
-
 	return 0;
 }
 #endif
@@ -256,7 +173,7 @@ static int __init omap4_sar_ram_init(void)
 }
 omap_early_initcall(omap4_sar_ram_init);
 
-static struct of_device_id gic_match[] = {
+static const struct of_device_id gic_match[] = {
 	{ .compatible = "arm,cortex-a9-gic", },
 	{ .compatible = "arm,cortex-a15-gic", },
 	{ },
