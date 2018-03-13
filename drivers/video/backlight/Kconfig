@@ -418,6 +418,13 @@ config BACKLIGHT_SKY81452
 	  To compile this driver as a module, choose M here: the module will
 	  be called sky81452-backlight
 
+config BACKLIGHT_TI_LMU
+	tristate "Backlight driver for TI LMU"
+	depends on BACKLIGHT_CLASS_DEVICE && MFD_TI_LMU
+	help
+	  Say Y to enable the backlight driver for TI LMU devices.
+	  This supports LM3532, LM3631, LM3632, LM3633, LM3695 and LM3697.
+
 config BACKLIGHT_TPS65217
 	tristate "TPS65217 Backlight"
 	depends on BACKLIGHT_CLASS_DEVICE && MFD_TPS65217
