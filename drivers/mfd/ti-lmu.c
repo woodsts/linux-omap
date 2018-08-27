@@ -58,7 +58,6 @@ static const struct mfd_cell lm3532_devices[] = {
 	{
 		.name          = "ti-lmu-backlight",
 		.id            = LM3532,
-		.of_compatible = "ti,lm3532-backlight",
 	},
 };
 
@@ -78,7 +77,6 @@ static const struct mfd_cell lm3631_devices[] = {
 	{
 		.name          = "ti-lmu-backlight",
 		.id            = LM3631,
-		.of_compatible = "ti,lm3631-backlight",
 	},
 };
 
@@ -89,7 +87,6 @@ static const struct mfd_cell lm3632_devices[] = {
 	{
 		.name          = "ti-lmu-backlight",
 		.id            = LM3632,
-		.of_compatible = "ti,lm3632-backlight",
 	},
 };
 
@@ -97,7 +94,6 @@ static const struct mfd_cell lm3633_devices[] = {
 	{
 		.name          = "ti-lmu-backlight",
 		.id            = LM3633,
-		.of_compatible = "ti,lm3633-backlight",
 	},
 	{
 		.name          = "lm3633-leds",
@@ -115,7 +111,6 @@ static const struct mfd_cell lm3695_devices[] = {
 	{
 		.name          = "ti-lmu-backlight",
 		.id            = LM3695,
-		.of_compatible = "ti,lm3695-backlight",
 	},
 };
 
@@ -123,7 +118,6 @@ static const struct mfd_cell lm3697_devices[] = {
 	{
 		.name          = "ti-lmu-backlight",
 		.id            = LM3697,
-		.of_compatible = "ti,lm3697-backlight",
 	},
 	/* Monitoring driver for open/short circuit detection */
 	{
