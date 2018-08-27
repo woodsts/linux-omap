@@ -554,6 +554,8 @@ struct omap_dss_driver {
 			    struct videomode *vm);
 	void (*get_size)(struct omap_dss_device *dssdev,
 			 unsigned int *width, unsigned int *height);
+	void (*get_rotation)(struct omap_dss_device *dssdev,
+				int *rotation);
 
 	int (*set_wss)(struct omap_dss_device *dssdev, u32 wss);
 	u32 (*get_wss)(struct omap_dss_device *dssdev);
