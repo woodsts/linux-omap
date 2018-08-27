@@ -214,6 +214,7 @@
 
 		width-mm = <50>;
 		height-mm = <89>;
+		rotation = <90>;
 		backlight = <&lcd_backlight>;
 
 		panel-timing {
