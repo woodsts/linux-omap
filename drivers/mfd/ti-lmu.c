@@ -183,6 +183,17 @@ static int ti_lmu_probe(struct i2c_client *cl, const struct i2c_device_id *id)
 		return ret;
 	}
 
+	lmu->pwm = devm_pwm_get(dev, "lmu-backlight");
+	if (IS_ERR(lmu->pwm)) {
+		ret = PTR_ERR(lmu->pwm);
+		if (ret != -EINVAL) {
+			dev_err(dev, "Failed to get PWM: %d\n", ret);
+			return ret;
+		}
+
+		lmu->pwm = NULL;
+	}
+
 	ret = ti_lmu_enable_hw(lmu, id->driver_data);
 	if (ret)
 		return ret;
