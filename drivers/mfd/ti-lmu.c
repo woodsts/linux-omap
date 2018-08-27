@@ -56,8 +56,16 @@ static void ti_lmu_disable_hw(void *data)
 
 static const struct mfd_cell lm3532_devices[] = {
 	{
-		.name          = "ti-lmu-backlight",
-		.id            = LM3532,
+		.name          = "ti-lmu-led-backlight",
+		.id            = 0,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 1,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 2,
 	},
 };
 
@@ -75,8 +83,12 @@ static const struct mfd_cell lm3631_devices[] = {
 	LM363X_REGULATOR(LM3631_LDO_POS),
 	LM363X_REGULATOR(LM3631_LDO_NEG),
 	{
-		.name          = "ti-lmu-backlight",
-		.id            = LM3631,
+		.name          = "ti-lmu-led-backlight",
+		.id            = 0,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 1,
 	},
 };
 
@@ -85,15 +97,27 @@ static const struct mfd_cell lm3632_devices[] = {
 	LM363X_REGULATOR(LM3632_LDO_POS),
 	LM363X_REGULATOR(LM3632_LDO_NEG),
 	{
-		.name          = "ti-lmu-backlight",
-		.id            = LM3632,
+		.name          = "ti-lmu-led-backlight",
+		.id            = 0,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 1,
 	},
 };
 
 static const struct mfd_cell lm3633_devices[] = {
 	{
-		.name          = "ti-lmu-backlight",
-		.id            = LM3633,
+		.name          = "ti-lmu-led-backlight",
+		.id            = 0,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 1,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 2,
 	},
 	{
 		.name          = "lm3633-leds",
@@ -109,15 +133,27 @@ static const struct mfd_cell lm3633_devices[] = {
 
 static const struct mfd_cell lm3695_devices[] = {
 	{
-		.name          = "ti-lmu-backlight",
-		.id            = LM3695,
+		.name          = "ti-lmu-led-backlight",
+		.id            = 0,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 1,
 	},
 };
 
 static const struct mfd_cell lm3697_devices[] = {
 	{
-		.name          = "ti-lmu-backlight",
-		.id            = LM3697,
+		.name          = "ti-lmu-led-backlight",
+		.id            = 0,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 1,
+	},
+	{
+		.name          = "ti-lmu-led-backlight",
+		.id            = 2,
 	},
 	/* Monitoring driver for open/short circuit detection */
 	{
@@ -163,6 +199,7 @@ static int ti_lmu_probe(struct i2c_client *cl, const struct i2c_device_id *id)
 		return -ENOMEM;
 
 	lmu->dev = &cl->dev;
+	lmu->id = id->driver_data;
 
 	/* Setup regmap */
 	memset(&regmap_cfg, 0, sizeof(struct regmap_config));
@@ -208,6 +245,7 @@ static int ti_lmu_probe(struct i2c_client *cl, const struct i2c_device_id *id)
 	 * configuration. The notifier enables such kind of handling.
 	 */
 	BLOCKING_INIT_NOTIFIER_HEAD(&lmu->notifier);
+	lmu->backlight_initialized = false;
 
 	i2c_set_clientdata(cl, lmu);
 
