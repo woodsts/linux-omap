@@ -68,6 +68,7 @@ struct panel_drv_data {
 
 	int width_mm;
 	int height_mm;
+	int rotation;
 
 	struct omap_dsi_pin_config pin_config;
 
@@ -1210,6 +1211,14 @@ static void dsicm_get_size(struct omap_dss_device *dssdev,
 	*height = ddata->height_mm;
 }
 
+static void dsicm_get_rotation(struct omap_dss_device *dssdev,
+			       int *rotation)
+{
+	struct panel_drv_data *ddata = to_panel_data(dssdev);
+
+	*rotation = ddata->rotation;
+}
+
 static struct omap_dss_driver dsicm_ops = {
 	.connect	= dsicm_connect,
 	.disconnect	= dsicm_disconnect,
@@ -1223,6 +1232,7 @@ static struct omap_dss_driver dsicm_ops = {
 	.get_timings	= dsicm_get_timings,
 	.check_timings	= dsicm_check_timings,
 	.get_size	= dsicm_get_size,
+	.get_rotation   = dsicm_get_rotation,
 
 	.enable_te	= dsicm_enable_te,
 	.get_te		= dsicm_get_te,
@@ -1269,6 +1279,9 @@ static int dsicm_probe_of(struct platform_device *pdev)
 
 	ddata->height_mm = 0;
 	of_property_read_u32(node, "height-mm", &ddata->height_mm);
+
+	ddata->rotation = -1;
+	of_property_read_u32(node, "rotation", &ddata->rotation);
 
 	ddata->vpnl = devm_regulator_get_optional(&pdev->dev, "vpnl");
 	if (IS_ERR(ddata->vpnl)) {
