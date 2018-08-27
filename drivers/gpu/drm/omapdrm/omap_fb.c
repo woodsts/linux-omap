@@ -66,8 +66,31 @@ struct omap_framebuffer {
 	struct mutex lock;
 };
 
+struct drm_connector *omap_framebuffer_get_next_connector(
+		struct drm_framebuffer *fb, struct drm_connector *from);
+
+static int omap_framebuffer_dirty(struct drm_framebuffer *fb,
+				  struct drm_file *file_priv,
+				  unsigned flags, unsigned color,
+				  struct drm_clip_rect *clips,
+				  unsigned num_clips)
+{
+	struct drm_connector *connector = NULL;
+
+	drm_modeset_lock_all(fb->dev);
+
+	while ((connector = omap_framebuffer_get_next_connector(fb, connector)))
+		if (connector->encoder && connector->encoder->crtc)
+			omap_crtc_flush(connector->encoder->crtc);
+
+	drm_modeset_unlock_all(fb->dev);
+
+	return 0;
+}
+
 static const struct drm_framebuffer_funcs omap_framebuffer_funcs = {
 	.create_handle = drm_gem_fb_create_handle,
+	.dirty = omap_framebuffer_dirty,
 	.destroy = drm_gem_fb_destroy,
 };
 
@@ -277,6 +300,33 @@ void omap_framebuffer_unpin(struct drm_framebuffer *fb)
 	}
 
 	mutex_unlock(&omap_fb->lock);
+}
+
+/* iterate thru all the connectors, returning ones that are attached
+ * to the same fb..
+ */
+struct drm_connector *omap_framebuffer_get_next_connector(
+		struct drm_framebuffer *fb, struct drm_connector *from)
+{
+	struct drm_device *dev = fb->dev;
+	struct list_head *connector_list = &dev->mode_config.connector_list;
+	struct drm_connector *connector = from;
+
+	if (!from)
+		return list_first_entry_or_null(connector_list, typeof(*from),
+						head);
+
+	list_for_each_entry_from(connector, connector_list, head) {
+		if (connector != from) {
+			struct drm_encoder *encoder = connector->encoder;
+			struct drm_crtc *crtc = encoder ? encoder->crtc : NULL;
+			if (crtc && crtc->primary->fb == fb)
+				return connector;
+
+		}
+	}
+
+	return NULL;
 }
 
 #ifdef CONFIG_DEBUG_FS
