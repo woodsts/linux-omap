@@ -18,6 +18,18 @@ Descriptive Properties
   physical area where images are displayed. These properties are expressed in
   millimeters and rounded to the closest unit.
 
+- rotation: Display rotation in degrees counter clockwise (0,90,180,270).
+  The following values are possible:
+
+    0 = The top side of the panel matches the top side of the
+        device's casing (default).
+   90 = The top side of the panel matches the left side of the
+        device's casing.
+  180 = The top side of the panel matches the bottom side of
+        the device's casing. The panel is mounted upside-down.
+  270 = The top side of the panel matches the right side of
+        the device's casing.
+
 - label: The label property specifies a symbolic name for the panel as a
   string suitable for use by humans. It typically contains a name inscribed on
   the system (e.g. as an affixed label) or specified in the system's
