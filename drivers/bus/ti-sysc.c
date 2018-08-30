@@ -854,6 +854,8 @@ static const struct sysc_revision_quirk sysc_revision_quirks[] = {
 		   SYSC_QUIRK_RESOURCE_PROVIDER),
 	SYSC_QUIRK("mcspi", 0, 0, 0x110, 0x114, 0x40300a0b, 0xffffffff,
 		   SYSC_QUIRK_RESOURCE_PROVIDER),
+	SYSC_QUIRK("prcm", 0, 0, -1, -1, 0x00004102, 0xffffffff,
+		   SYSC_QUIRK_RESOURCE_PROVIDER),
 	SYSC_QUIRK("prcm", 0, 0, -1, -1, 0x40000100, 0xffffffff,
 		   SYSC_QUIRK_RESOURCE_PROVIDER),
 	SYSC_QUIRK("ocp2scp", 0, 0, 0x10, 0x14, 0x50060005, 0xffffffff,
@@ -865,6 +867,8 @@ static const struct sysc_revision_quirk sysc_revision_quirks[] = {
 	SYSC_QUIRK("prcm", 0, 0, -1, -1, 0x40000400, 0xffffffff,
 		   SYSC_QUIRK_RESOURCE_PROVIDER),
 	SYSC_QUIRK("scm", 0, 0, 0x10, -1, 0x40000900, 0xffffffff,
+		   SYSC_QUIRK_RESOURCE_PROVIDER),
+	SYSC_QUIRK("scm", 0, 0, -1, -1, 0x4e8b0100, 0xffffffff,
 		   SYSC_QUIRK_RESOURCE_PROVIDER),
 	SYSC_QUIRK("scm", 0, 0, -1, -1, 0x4f000100, 0xffffffff,
 		   SYSC_QUIRK_RESOURCE_PROVIDER),
@@ -900,7 +904,7 @@ static const struct sysc_revision_quirk sysc_revision_quirks[] = {
 		   SYSC_QUIRK_LEGACY_IDLE),
 
 	/* These devices don't yet suspend properly without legacy setting */
-	SYSC_QUIRK("cpgmac", 0, 0x1200, 0x1208, 0x1204, 0x4edb1902, 0xffffffff,
+	SYSC_QUIRK("cpgmac", 0, 0x1200, 0x1208, 0x1204, 0x4edb1902, 0xfff00f0,
 		   SYSC_QUIRK_LEGACY_IDLE),
 	SYSC_QUIRK("sdio", 0, 0, 0x10, -1, 0x40202301, 0xffffffff,
 		   SYSC_QUIRK_LEGACY_IDLE),
