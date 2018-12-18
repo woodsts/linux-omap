@@ -1129,7 +1129,7 @@ static void motmdm_remove(struct serdev_device *serdev)
 
 static struct serdev_device_driver motmdm_driver = {
 	.driver = {
-		.name = motmdm_driver_name,
+		.name = "motmdm",
 		.of_match_table = of_match_ptr(motmdm_id_table),
 		.pm = &motmdm_pm_ops,
 	},
