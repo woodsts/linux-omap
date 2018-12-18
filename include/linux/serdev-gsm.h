@@ -63,7 +63,10 @@ static inline void *gsm_serdev_get_drvdata(struct device *dev)
 	struct serdev_device *serdev = to_serdev_device(dev);
 	struct gsm_serdev *gsd = serdev_device_get_drvdata(serdev);
 
-	return gsd->drvdata;
+	if (gsd)
+		return gsd->drvdata;
+
+	return NULL;
 }
 
 static inline void gsm_serdev_set_drvdata(struct device *dev, void *drvdata)
@@ -71,7 +74,8 @@ static inline void gsm_serdev_set_drvdata(struct device *dev, void *drvdata)
 	struct serdev_device *serdev = to_serdev_device(dev);
 	struct gsm_serdev *gsd = serdev_device_get_drvdata(serdev);
 
-	gsd->drvdata = drvdata;
+	if (gsd)
+		gsd->drvdata = drvdata;
 }
 
 /**
@@ -84,9 +88,6 @@ static inline void gsm_serdev_set_drvdata(struct device *dev, void *drvdata)
 static inline
 int gsm_serdev_get_config(struct gsm_serdev *gsd, struct gsm_config *c)
 {
-	if (!gsd || !gsd->get_config)
-		return -ENODEV;
-
 	return gsd->get_config(gsd, c);
 }
 
@@ -100,10 +101,10 @@ int gsm_serdev_get_config(struct gsm_serdev *gsd, struct gsm_config *c)
 static inline
 int gsm_serdev_set_config(struct gsm_serdev *gsd, struct gsm_config *c)
 {
-	if (!gsd || !gsd->serdev || !gsd->set_config)
-		return -ENODEV;
+	if (gsd && gsd->set_config)
+		return gsd->set_config(gsd, c);
 
-	return gsd->set_config(gsd, c);
+	return -ENODEV;
 }
 
 /**
@@ -115,10 +116,10 @@ static inline
 int gsm_serdev_register_dlci(struct gsm_serdev *gsd,
 			     struct gsm_serdev_dlci *ops)
 {
-	if (!gsd || !gsd->serdev || !gsd->register_dlci)
-		return -ENODEV;
+	if (gsd && gsd->register_dlci)
+		return gsd->register_dlci(gsd, ops);
 
-	return gsd->register_dlci(gsd, ops);
+	return -ENODEV;
 }
 
 /**
@@ -130,10 +131,8 @@ static inline
 void gsm_serdev_unregister_dlci(struct gsm_serdev *gsd,
 				struct gsm_serdev_dlci *ops)
 {
-	if (!gsd || !gsd->serdev || !gsd->unregister_dlci)
-		return;
-
-	gsd->unregister_dlci(gsd, ops);
+	if (gsd && gsd->unregister_dlci)
+		gsd->unregister_dlci(gsd, ops);
 }
 
 /**
@@ -148,10 +147,10 @@ size_t gsm_serdev_write(struct gsm_serdev *gsd,
 			struct gsm_serdev_dlci *ops,
 			const unsigned char *buf, size_t len)
 {
-	if (!gsd || !gsd->write)
-		return -ENODEV;
+	if (gsd && gsd->write)
+		return gsd->write(gsd, ops, buf, len);
 
-	return gsd->write(gsd, ops, buf, len);
+	return -ENODEV;
 }
 
 /**
@@ -167,7 +166,7 @@ void gsm_serdev_data_kick(struct gsm_serdev *gsd)
 		gsd->kick(gsd);
 }
 
-#else
+#else	/* CONFIG_SERIAL_DEV_BUS */
 
 static inline
 int gsm_serdev_register_device(struct gsm_serdev *gsd)
@@ -178,6 +177,28 @@ int gsm_serdev_register_device(struct gsm_serdev *gsd)
 static inline
 void gsm_serdev_unregister_device(struct gsm_serdev *gsd)
 {
+}
+
+static inline void *gsm_serdev_get_drvdata(struct device *dev)
+{
+	return NULL;
+}
+
+static inline
+void gsm_serdev_set_drvdata(struct device *dev, void *drvdata)
+{
+}
+
+static inline
+int gsm_serdev_get_config(struct gsm_serdev *gsd, struct gsm_config *c)
+{
+	return -ENODEV;
+}
+
+static inline
+int gsm_serdev_set_config(struct gsm_serdev *gsd, struct gsm_config *c)
+{
+	return -ENODEV;
 }
 
 static inline
@@ -191,7 +212,6 @@ static inline
 void gsm_serdev_unregister_dlci(struct gsm_serdev *gsd,
 				struct gsm_serdev_dlci *ops)
 {
-	return -ENODEV;
 }
 
 static inline
@@ -206,4 +226,5 @@ static inline
 void gsm_serdev_data_kick(struct gsm_serdev *gsd)
 {
 }
+
 #endif	/* CONFIG_SERIAL_DEV_BUS */

@@ -2326,9 +2326,14 @@ static int gsm_config(struct gsm_mux *gsm, struct gsm_config *c)
 #ifdef CONFIG_SERIAL_DEV_BUS
 static int gsd_get_config(struct gsm_serdev *gsd, struct gsm_config *c)
 {
-	struct gsm_mux *gsm = gsd->gsm;
+	struct gsm_mux *gsm;
 
-	if (!gsm || !c)
+	if (!gsd || !gsd->gsm)
+		return -ENODEV;
+
+	gsm = gsd->gsm;
+
+	if (!c)
 		return -EINVAL;
 
 	gsm_copy_config_values(gsm, c);
@@ -2338,9 +2343,14 @@ static int gsd_get_config(struct gsm_serdev *gsd, struct gsm_config *c)
 
 static int gsd_set_config(struct gsm_serdev *gsd, struct gsm_config *c)
 {
-	struct gsm_mux *gsm = gsd->gsm;
+	struct gsm_mux *gsm;
 
-	if (!gsm || !c)
+	if (!gsd || !gsd->serdev || !gsd->gsm)
+		return -ENODEV;
+
+	gsm = gsd->gsm;
+
+	if (!c)
 		return -EINVAL;
 
 	return gsm_config(gsm, c);
@@ -2352,10 +2362,13 @@ static struct gsm_dlci *gsd_dlci_get(struct gsm_serdev *gsd, int line,
 	struct gsm_mux *gsm;
 	struct gsm_dlci *dlci;
 
-	if (!gsd || !gsd->gsm || line < 1 || line >= 63)
-		return ERR_PTR(-EINVAL);
+	if (!gsd || !gsd->gsm)
+		return ERR_PTR(-ENODEV);
 
 	gsm = gsd->gsm;
+
+	if (line < 1 || line >= 63)
+		return ERR_PTR(-EINVAL);
 
 	mutex_lock(&gsm->mutex);
 
@@ -2388,7 +2401,7 @@ static void gsd_dlci_data(struct gsm_dlci *dlci, const u8 *buf, int len)
 	struct gsm_mux *gsm = dlci->gsm;
 	struct gsm_serdev *gsd = gsm->gsd;
 
-	if (!gsd || !dlci->ops || !dlci->ops->receive_buf)
+	if (!gsd || !dlci->ops)
 		return;
 
 	switch (dlci->adaption) {
@@ -2415,11 +2428,14 @@ static size_t gsd_write(struct gsm_serdev *gsd,
 	int h, size;
 	u8 *dp;
 
+	if (!gsd || !gsd->gsm)
+		return -ENODEV;
+
+	gsm = gsd->gsm;
+
 	dlci = gsd_dlci_get(gsd, sd->line, false);
 	if (IS_ERR(dlci))
 		return PTR_ERR(dlci);
-
-	gsm = gsd->gsm;
 
 	h = dlci->adaption - 1;
 
@@ -2449,8 +2465,13 @@ static size_t gsd_write(struct gsm_serdev *gsd,
 
 static void gsd_data_kick(struct gsm_serdev *gsd)
 {
-	struct gsm_mux *gsm = gsd->gsm;
+	struct gsm_mux *gsm;
 	unsigned long flags;
+
+	if (!gsd || !gsd->gsm)
+		return;
+
+	gsm = gsd->gsm;
 
 	spin_lock_irqsave(&gsm->tx_lock, flags);
 	gsm_data_kick(gsm);
@@ -2463,10 +2484,13 @@ static int gsd_register_dlci(struct gsm_serdev *gsd,
 	struct gsm_dlci *dlci;
 	struct gsm_mux *gsm;
 
-	if (!gsd || !ops || !ops->line || !ops->receive_buf)
-		return -EINVAL;
+	if (!gsd || !gsd->gsm || !gsd->serdev)
+		return -ENODEV;
 
 	gsm = gsd->gsm;
+
+	if (!ops || !ops->line || !ops->receive_buf)
+		return -EINVAL;
 
 	dlci = gsd_dlci_get(gsd, ops->line, true);
 	if (IS_ERR(dlci))
@@ -2494,10 +2518,13 @@ static void gsd_unregister_dlci(struct gsm_serdev *gsd,
 	struct gsm_mux *gsm;
 	struct gsm_dlci *dlci;
 
-	if (!gsd || !ops || !ops->line)
+	if (!gsd || !gsd->gsm || !gsd->serdev || !gsd->unregister_dlci)
 		return;
 
 	gsm = gsd->gsm;
+
+	if (!ops || !ops->line)
+		return;
 
 	dlci = gsd_dlci_get(gsd, ops->line, false);
 	if (IS_ERR(dlci))
