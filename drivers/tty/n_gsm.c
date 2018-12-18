@@ -145,10 +145,8 @@ struct gsm_dlci {
 	struct sk_buff *skb;	/* Frame being sent */
 	struct sk_buff_head skb_list;	/* Queued frames */
 	/* Data handling callback */
-	void (*data)(struct gsm_dlci *dlci, const unsigned char *data,
-		     size_t len);
-	void (*prev_data)(struct gsm_dlci *dlci, const unsigned char *data,
-			  size_t len);
+	void (*data)(struct gsm_dlci *dlci, const u8 *data, int len);
+	void (*prev_data)(struct gsm_dlci *dlci, const u8 *data, int len);
 	struct gsm_serdev_dlci *ops; /* serdev dlci ops, if used */
 	struct net_device *net; /* network interface, if created */
 };
@@ -644,7 +642,7 @@ static inline void gsm_command(struct gsm_mux *gsm, int addr, int control)
  *	detail and not for the high level code to use
  */
 
-static struct gsm_msg *gsm_data_alloc(struct gsm_mux *gsm, u8 addr, size_t len,
+static struct gsm_msg *gsm_data_alloc(struct gsm_mux *gsm, u8 addr, int len,
 								u8 ctrl)
 {
 	struct gsm_msg *m = kmalloc(sizeof(struct gsm_msg) + len + HDR_LEN,
@@ -994,9 +992,8 @@ static void gsm_dlci_data_kick(struct gsm_dlci *dlci)
  *	Encode up and queue a UI/UIH frame containing our response.
  */
 
-static void gsm_control_reply(struct gsm_mux *gsm, int cmd,
-			      const unsigned char *data,
-			      size_t dlen)
+static void gsm_control_reply(struct gsm_mux *gsm, int cmd, const u8 *data,
+					int dlen)
 {
 	struct gsm_msg *msg;
 	msg = gsm_data_alloc(gsm, 0, dlen + 2, gsm->ftype);
@@ -1080,16 +1077,14 @@ static void gsm_process_modem(struct tty_struct *tty, struct gsm_dlci *dlci,
  *	and if need be stuff a break message down the tty.
  */
 
-static void gsm_control_modem(struct gsm_mux *gsm,
-			      const unsigned char *data,
-			      size_t clen)
+static void gsm_control_modem(struct gsm_mux *gsm, const u8 *data, int clen)
 {
 	unsigned int addr = 0;
 	unsigned int modem = 0;
 	unsigned int brk = 0;
 	struct gsm_dlci *dlci;
 	int len = clen;
-	const unsigned char *dp = data;
+	const u8 *dp = data;
 	struct tty_struct *tty;
 
 	while (gsm_read_ea(&addr, *dp++) == 0) {
@@ -1143,14 +1138,13 @@ static void gsm_control_modem(struct gsm_mux *gsm,
  *	this into the uplink tty if present
  */
 
-static void gsm_control_rls(struct gsm_mux *gsm, const unsigned char *data,
-			    size_t clen)
+static void gsm_control_rls(struct gsm_mux *gsm, const u8 *data, int clen)
 {
 	struct tty_port *port;
 	unsigned int addr = 0;
 	u8 bits;
 	int len = clen;
-	const unsigned char *dp = data;
+	const u8 *dp = data;
 
 	while (gsm_read_ea(&addr, *dp++) == 0) {
 		len--;
@@ -1199,7 +1193,7 @@ static void gsm_dlci_begin_close(struct gsm_dlci *dlci);
  */
 
 static void gsm_control_message(struct gsm_mux *gsm, unsigned int command,
-				const unsigned char *data, size_t clen)
+						const u8 *data, int clen)
 {
 	u8 buf[1];
 	unsigned long flags;
@@ -1271,7 +1265,7 @@ static void gsm_control_message(struct gsm_mux *gsm, unsigned int command,
  */
 
 static void gsm_control_response(struct gsm_mux *gsm, unsigned int command,
-				 const unsigned char *data, size_t clen)
+						const u8 *data, int clen)
 {
 	struct gsm_control *ctrl;
 	unsigned long flags;
@@ -1563,8 +1557,7 @@ static void gsm_dlci_begin_close(struct gsm_dlci *dlci)
  *	open we shovel the bits down it, if not we drop them.
  */
 
-static void gsm_dlci_data(struct gsm_dlci *dlci, const unsigned char *data,
-			  size_t clen)
+static void gsm_dlci_data(struct gsm_dlci *dlci, const u8 *data, int clen)
 {
 	/* krefs .. */
 	struct tty_port *port = &dlci->port;
@@ -1614,8 +1607,7 @@ static void gsm_dlci_data(struct gsm_dlci *dlci, const unsigned char *data,
  *	and we divide up the work accordingly.
  */
 
-static void gsm_dlci_command(struct gsm_dlci *dlci, const unsigned char *data,
-			     size_t len)
+static void gsm_dlci_command(struct gsm_dlci *dlci, const u8 *data, int len)
 {
 	/* See what command is involved */
 	unsigned int command = 0;
@@ -2391,9 +2383,7 @@ unlock:
 	return dlci;
 }
 
-static void gsd_dlci_data(struct gsm_dlci *dlci,
-			  const unsigned char *buf,
-			  size_t len)
+static void gsd_dlci_data(struct gsm_dlci *dlci, const u8 *buf, int len)
 {
 	struct gsm_mux *gsm = dlci->gsm;
 	struct gsm_serdev *gsd = gsm->gsd;
@@ -3010,7 +3000,7 @@ static void gsm_mux_net_tx_timeout(struct net_device *net)
 }
 
 static void gsm_mux_rx_netchar(struct gsm_dlci *dlci,
-			       const unsigned char *in_buf, size_t size)
+				const unsigned char *in_buf, int size)
 {
 	struct net_device *net = dlci->net;
 	struct sk_buff *skb;
