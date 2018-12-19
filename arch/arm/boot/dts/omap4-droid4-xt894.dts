@@ -670,10 +670,6 @@
 				};
 			};
 		};
-
-		gnss {
-			compatible = "motorola,mapphone-mdm6600-gnss";
-		};
 	};
 };
 
