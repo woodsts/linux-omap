@@ -40,23 +40,17 @@ struct motmdm_dlci {
 	struct kfifo read_fifo;
 	int line;
 	u16 id;
-	int (*send_command)(struct device *dev,
-			    struct motmdm_dlci *mot_dlci,
-			    unsigned long timeout_ms,
-			    const unsigned char *cmd, size_t cmdlen,
+	int (*send_command)(struct device *dev, struct motmdm_dlci *mot_dlci,
+			    unsigned long timeout_ms, const unsigned char *cmd,
+			    size_t cmdlen,
 			    unsigned char *rsp, size_t rsplen);
-	int (*handle_command)(struct motmdm_dlci *mot_dlci,
-			      int id,
-			      const unsigned char *buf,
-			      size_t len);
+	int (*handle_command)(struct motmdm_dlci *mot_dlci, int id,
+			      const unsigned char *buf, size_t len);
 	int (*receive_data)(struct motmdm_dlci *mot_dlci,
 			    const unsigned char *buf,
 			    size_t len);
-	int (*write)(struct device *dev,
-		     struct motmdm_dlci *mot_dlci,
-		     int cmdid,
-		     const unsigned char *buf,
-		     size_t count);
+	int (*write)(struct device *dev, struct motmdm_dlci *mot_dlci,
+		     int cmdid, const unsigned char *buf, size_t count);
 	int (*notify)(struct motmdm_dlci *mot_dlci, enum motmdm_state);
 	struct list_head list;
 	void *privdata;		/* Do not use, internal data */
@@ -66,7 +60,6 @@ struct motmdm_dlci {
 int motmdm_register_dlci(struct device *dev, struct motmdm_dlci *mot_dlci);
 void motmdm_unregister_dlci(struct device *dev, struct motmdm_dlci *mot_dlci);
 
-#if IS_ENABLED(CONFIG_MFD_MOTMDM)
 static inline
 int motmdm_send_command(struct device *dev, struct motmdm_dlci *mot_dlci,
 			unsigned long timeout_ms, const unsigned char *cmd,
@@ -89,21 +82,3 @@ int motmdm_write(struct device *dev, struct motmdm_dlci *mot_dlci,
 	else
 		return -EINVAL;
 }
-
-#else
-
-static inline
-int motmdm_send_command(struct device *dev, struct motmdm_dlci *mot_dlci,
-			unsigned long timeout_ms, const unsigned char *cmd,
-			size_t cmdlen, unsigned char *rsp, size_t rsplen)
-{
-	return -ENODEV;
-}
-
-static inline
-int motmdm_write(struct device *dev, struct motmdm_dlci *mot_dlci,
-		 const unsigned char *buf, size_t count)
-{
-	return -ENODEV;
-}
-#endif	/* CONFIG_MFD_MOTMDM */
