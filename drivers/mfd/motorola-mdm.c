@@ -842,7 +842,6 @@ static void motmdm_cdev_free_one(struct motmdm_cdev *cdata)
 	kfifo_free(&mot_dlci->read_fifo);
 	kfree(cdata->dlci);
 	kfree(cdata);
-	cdata->dlci = NULL;
 }
 
 static void motmdm_cdev_cleanup(struct device *dev)
