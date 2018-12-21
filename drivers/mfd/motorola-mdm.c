@@ -65,6 +65,7 @@ struct motmdm_response {
 	size_t reslen;
 	unsigned char *buf;
 	size_t len;
+	unsigned int handled:1;
 };
 
 struct motmdm_cdev {
@@ -297,7 +298,6 @@ static int motmdm_dlci_receive_buf(struct gsm_serdev_dlci *gsm_dlci,
 		mot_dlci->handle_command(mot_dlci, id, msg, msglen);
 
 err_kfifo:
-	wake_up_interruptible(&mot_dlci->read_queue);
 
 	return err;
 }
@@ -343,10 +343,15 @@ static int motmdm_dlci_send_command(struct device *dev,
 	if (err < 0)
 		goto unregister;
 
-	err = wait_event_interruptible_timeout(mot_dlci->read_queue, 0,
-					       msecs_to_jiffies(timeout_ms));
-	if (err)
+	err = wait_event_timeout(mot_dlci->read_queue, resp->handled,
+				 msecs_to_jiffies(timeout_ms));
+	if (err < 0)
 		goto unregister;
+
+	if (err == 0) {
+		err = -ETIMEDOUT;
+		goto unregister;
+	}
 
 	dev_dbg(dev, "%s: %s got %s\n", __func__, cmd, resp->buf);
 
@@ -400,6 +405,9 @@ static int motmdm_dlci_handle_command(struct motmdm_dlci *mot_dlci, int id,
 		resp->buf[resp->reslen - 1] = '\0';
 		resp->reslen--;
 	}
+
+	resp->handled = true;
+	wake_up_interruptible(&mot_dlci->read_queue);
 
 	return 0;
 }
