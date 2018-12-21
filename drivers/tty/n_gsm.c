@@ -2375,9 +2375,7 @@ static struct gsm_dlci *gsd_dlci_get(struct gsm_serdev *gsd, int line,
 	if (gsm->dlci[line]) {
 		dlci = gsm->dlci[line];
 		goto unlock;
-	}
-
-	if (!allocate) {
+	} else if (!allocate) {
 		dlci = ERR_PTR(-ENODEV);
 		goto unlock;
 	}
@@ -2417,15 +2415,13 @@ static void gsd_dlci_data(struct gsm_dlci *dlci, const u8 *buf, int len)
 	}
 }
 
-static size_t gsd_write(struct gsm_serdev *gsd,
-			struct gsm_serdev_dlci *sd,
-			const unsigned char *buf, size_t len)
+static int gsd_write(struct gsm_serdev *gsd, struct gsm_serdev_dlci *sd,
+		     const u8 *buf, int len)
 {
 	struct gsm_mux *gsm;
 	struct gsm_dlci *dlci;
 	struct gsm_msg *msg;
-	ssize_t total_size = 0;
-	int h, size;
+	int h, size, total_size = 0;
 	u8 *dp;
 
 	if (!gsd || !gsd->gsm)

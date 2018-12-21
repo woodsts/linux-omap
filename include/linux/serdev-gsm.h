@@ -35,9 +35,8 @@ struct gsm_serdev {
 	void (*unregister_dlci)(struct gsm_serdev *gsd,
 				struct gsm_serdev_dlci *ops);
 	int (*output)(struct gsm_serdev *gsd, u8 *data, int len);
-	size_t (*write)(struct gsm_serdev *gsd,
-			struct gsm_serdev_dlci *ops,
-			const unsigned char *buf, size_t len);
+	int (*write)(struct gsm_serdev *gsd, struct gsm_serdev_dlci *ops,
+		     const u8 *buf, int len);
 	void (*kick)(struct gsm_serdev *gsd);
 };
 
@@ -143,9 +142,8 @@ void gsm_serdev_unregister_dlci(struct gsm_serdev *gsd,
  * @len:	buffer length
  */
 static inline
-size_t gsm_serdev_write(struct gsm_serdev *gsd,
-			struct gsm_serdev_dlci *ops,
-			const unsigned char *buf, size_t len)
+int gsm_serdev_write(struct gsm_serdev *gsd, struct gsm_serdev_dlci *ops,
+		     const u8 *buf, int len)
 {
 	if (gsd && gsd->write)
 		return gsd->write(gsd, ops, buf, len);
@@ -215,9 +213,8 @@ void gsm_serdev_unregister_dlci(struct gsm_serdev *gsd,
 }
 
 static inline
-size_t gsm_serdev_write(struct gsm_serdev *gsd,
-			struct gsm_serdev_dlci *ops,
-			const unsigned char *buf, size_t len)
+int gsm_serdev_write(struct gsm_serdev *gsd, struct gsm_serdev_dlci *ops,
+		     const u8 *buf, int len)
 {
 	return -ENODEV;
 }
