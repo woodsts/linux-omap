@@ -3,7 +3,7 @@
  * Motorola TS 27.010 serial line discipline serdev driver
  * Copyright (C) 2018 Tony Lindgren <tony@atomide.com>
  */
-#define DEBUG
+
 #include <linux/cdev.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -36,6 +36,7 @@
 #define MOTMDM_ID_LEN		5	/* U + unsigned short */
 #define MOTMDM_CMD_LEN(x)	(MOTMDM_ID_LEN + (x) + 1)
 #define MOTMDM_WRITE_BUF_SIZE	1024
+#define MOTMDM_READ_FIFO_SIZE	4096
 
 struct motmdm_cfg {
 	unsigned long cdevmask;
@@ -196,10 +197,17 @@ static int motmdm_new_packet_id(void)
 }
 
 /*
- * The modem DLCI provides also modem status information. This
- * can be used at least for the Alsa ASoC codec driver to enable
- * it automatically for voice calls, and could be used for things
- * like signal strength etc later on.
+ * The modem DLCI1 provides also modem status information. We just forward
+ * DLCI1 as a character device to userspace. However in a bit of a layering
+ * violation, we also need to parse the modem state from DLCI1 for modem
+ * state notifications.
+ *
+ * The notifications start with a '~' character and are separate from modem
+ * commands. So let's try to stick to just parsing the notifications here.
+ *
+ * This is needed for Alsa ASoC codec driver to reconfigure clocks and codec
+ * hardware with set_tdm_slot() for voice calls automatically. And it can be
+ * later on used for things like signal strength etc.
  */
 static void motmdm_read_state(struct motmdm_dlci *mot_dlci,
 			      const unsigned char *buf,
@@ -210,20 +218,9 @@ static void motmdm_read_state(struct motmdm_dlci *mot_dlci,
 	enum motmdm_state state = MOTMDM_STATE_IDLE;
 
 	switch (len) {
-	case 4 + 1:
-		if (!strncmp(buf, "D:OK", 4))
-			state = MOTMDM_STATE_DIAL;
-		if (!strncmp(buf, "A:OK", 4))
-			state = MOTMDM_STATE_ANSWERING;
-		else if (!strncmp(buf, "H:OK", 4))
-			state = MOTMDM_STATE_HANGING_UP;
-		break;
-	case 7 + 1:
-		if (!strncmp(buf, "H:ERROR", 7))
-			state = MOTMDM_STATE_HANGING_UP;
-		break;
-
 	case 12 + 1:
+		if (buf[0] != '~')
+			break;
 		if (!strncmp(buf, "~+CIEV=1,1,0", 12))
 			state = MOTMDM_STATE_CONNECTING;
 		if (!strncmp(buf, "~+CIEV=1,4,0", 12))
@@ -305,6 +302,10 @@ err_kfifo:
 	return err;
 }
 
+/*
+ * Helper for child device drivers to send a command to a DLCI and wait
+ * for result with a matching packet ID.
+ */
 static int motmdm_dlci_send_command(struct device *dev,
 				    struct motmdm_dlci *mot_dlci,
 				    unsigned long timeout_ms,
@@ -363,6 +364,9 @@ unregister:
 	return err;
 }
 
+/*
+ * Helper for child device drivers to parse a command sent to a DLCI
+ */
 static int motmdm_dlci_handle_command(struct motmdm_dlci *mot_dlci, int id,
 				      const unsigned char *buf, size_t len)
 {
@@ -444,7 +448,7 @@ static int motmdm_dlci_write(struct device *dev, struct motmdm_dlci *mot_dlci,
 	return err;
 }
 
-#define MOTMDM_READ_FIFO_SIZE		4096
+
 
 int motmdm_register_dlci(struct device *dev, struct motmdm_dlci *mot_dlci)
 {
