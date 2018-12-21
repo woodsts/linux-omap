@@ -48,9 +48,6 @@ struct motmdm_gnss_data {
 	size_t dbglen;
 };
 
-static int motmdm_gnss_init(struct gnss_device *gdev);
-static int motmdm_gnss_finish(struct gnss_device *gdev);
-
 static unsigned int rate_ms = MOTMDM_GNSS_RATE;
 module_param(rate_ms, uint, 0644);
 MODULE_PARM_DESC(rate_ms, "GNSS refresh rate between 1000 and 16000 ms (default 1000 ms)");
@@ -110,24 +107,6 @@ static void motmdm_gnss_restart(struct work_struct *work)
 
 		return;
 	}
-#if 0
-	/* Empty response means no fix was found and we need to reinit */
-	if (error == 0) {
-		dev_warn(&gdev->dev, "%s: empty response from modem?\n",
-			 __func__);
-
-		error = motmdm_gnss_finish(gdev);
-		if (error < 0) {
-			dev_err(&gdev->dev, "%s: could not finish: %i\n",
-				__func__, error);
-		}
-
-		error = motmdm_gnss_init(gdev);
-		if (error)
-			dev_err(&gdev->dev, "%s: could not reinit: %i\n",
-				__func__, error);
-	}
-#endif
 }
 
 static void motmdm_gnss_start(struct gnss_device *gdev, int delay_ms)
@@ -154,6 +133,8 @@ static int motmdm_gnss_stop(struct gnss_device *gdev)
 	struct motmdm_gnss_data *ddata = gnss_get_drvdata(gdev);
 	struct motmdm_dlci *mot_dlci = &ddata->mot_dlci;
 	const unsigned char *cmd = "AT+MPDSTOP";
+
+	cancel_delayed_work_sync(&ddata->restart_work);
 
 	return motmdm_send_command(ddata->modem, mot_dlci,
 					MOTMDM_GNSS_TIMEOUT,
@@ -187,14 +168,14 @@ static int motmdm_gnss_finish(struct gnss_device *gdev)
 	const unsigned char *cmd = "AT+MPDINIT=0";
 	int error;
 
-	error = motmdm_send_command(ddata->modem, mot_dlci,
-					 MOTMDM_GNSS_TIMEOUT,
-					 cmd, strlen(cmd),
-					 ddata->buf, ddata->len);
+	error = motmdm_gnss_stop(gdev);
 	if (error < 0)
 		return error;
 
-	return motmdm_gnss_stop(gdev);
+	return motmdm_send_command(ddata->modem, mot_dlci,
+				   MOTMDM_GNSS_TIMEOUT,
+				   cmd, strlen(cmd),
+				   ddata->buf, ddata->len);
 }
 
 static int motmdm_gnss_receive_data(struct motmdm_dlci *mot_dlci,
@@ -298,8 +279,6 @@ static void motmdm_gnss_close(struct gnss_device *gdev)
 	int error;
 
 	mot_dlci->receive_data = NULL;
-	cancel_delayed_work_sync(&ddata->restart_work);
-
 	error = motmdm_gnss_finish(gdev);
 	if (error < 0)
 		dev_warn(&gdev->dev, "%s: close failed: %i\n",
