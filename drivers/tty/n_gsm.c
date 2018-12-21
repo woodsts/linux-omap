@@ -2545,10 +2545,6 @@ static int gsm_serdev_output(struct gsm_mux *gsm, u8 *data, int len)
 	if (asleep)
 		return -ENOSPC;
 
-	if (debug & 4)
-		print_hex_dump_bytes("gsm_serdev_output: ",
-				     DUMP_PREFIX_OFFSET,
-				     data, len);
 	if (gsm->gsd->output)
 		return gsm->gsd->output(gsm->gsd, data, len);
 	else
