@@ -83,8 +83,6 @@ static int motmdm_read_reg(void *context, unsigned int reg,
 		return error;
 	}
 
-	ddata->buf[1] = '\0';
-
 	error = kstrtouint(ddata->buf, 0, &val);
 	if (error)
 		return -ENODEV;

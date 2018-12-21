@@ -365,7 +365,7 @@ unregister:
 }
 
 /*
- * Helper for child device drivers to parse a command sent to a DLCI
+ * Helper for child device drivers to parse the command response from a DLCI
  */
 static int motmdm_dlci_handle_command(struct motmdm_dlci *mot_dlci, int id,
 				      const unsigned char *buf, size_t len)
@@ -394,6 +394,12 @@ static int motmdm_dlci_handle_command(struct motmdm_dlci *mot_dlci, int id,
 
 	resp->reslen = min3(len - resp_start, resp->len, len);
 	strncpy(resp->buf, buf + resp_start, resp->reslen);
+
+	/* Leave out trailing line break if there */
+	if (resp->reslen > 1 && resp->buf[resp->reslen - 1] == '\n') {
+		resp->buf[resp->reslen - 1] = '\0';
+		resp->reslen--;
+	}
 
 	return 0;
 }
@@ -903,11 +909,11 @@ static int motmdm_check_revision(struct device *dev)
 	if (err < 0) {
 		dev_err(dev, "Could not connect: %i\n", err);
 	} else if (!strncmp(buf, "ERROR", 5)) {
-		dev_err(dev, "Firmware error: \"%s\"\n", buf);
+		dev_err(dev, "Firmware error: %s\n", buf);
 		err = -ENODEV;
 	} else {
+		dev_info(dev, "Firmware: %s\n", buf);
 		err = 0;
-		dev_info(dev, "Firmware \"%s\"\n", buf);
 	}
 
 	motmdm_unregister_dlci(dev, mot_dlci);
