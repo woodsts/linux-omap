@@ -444,13 +444,22 @@ static int motmdm_dlci_write(struct device *dev, struct motmdm_dlci *mot_dlci,
 	if (!cmd)
 		return -ENOMEM;
 
-	if (cmdid < 0)
-		mot_dlci->id = motmdm_new_packet_id();
-	else
+	switch (cmdid) {
+	case -ENOENT:
+		/* No ID number, just U for continuation messages */
+		snprintf(cmd, cmdlen, "U%s\r", buf);
+		break;
+	case 0 ... 9999:
+		/* Valid ID */
 		mot_dlci->id = cmdid;
-
-	/* Prepend Motorola custom packet numbering */
-	snprintf(cmd, cmdlen, "U%04i%s\r", mot_dlci->id, buf);
+		snprintf(cmd, cmdlen, "U%04i%s\r", mot_dlci->id, buf);
+		break;
+	default:
+		/* Assign ID */
+		mot_dlci->id = motmdm_new_packet_id();
+		snprintf(cmd, cmdlen, "U%04i%s\r", mot_dlci->id, buf);
+		break;
+	}
 
 	err = gsm_serdev_write(gsd, &mot_dlci->gsm_dlci, cmd, cmdlen);
 	if (err == cmdlen)
@@ -627,13 +636,12 @@ static ssize_t motmdm_cdev_read(struct file *file, char __user *buf,
 	return err;
 }
 
-static ssize_t motmdm_cdev_write_packet(struct motmdm_cdev *cdata)
+static ssize_t motmdm_cdev_write_packet(struct motmdm_cdev *cdata, int cmdid)
 {
 	struct motmdm_dlci *mot_dlci = cdata->dlci;
 	struct motmdm *ddata = mot_dlci->privdata;
 
-	return mot_dlci->write(ddata->dev, mot_dlci,
-			motmdm_new_packet_id(),
+	return mot_dlci->write(ddata->dev, mot_dlci, cmdid,
 			cdata->write_buf, cdata->write_offset - 1);
 }
 
@@ -642,7 +650,7 @@ static ssize_t motmdm_cdev_write(struct file *file, const char __user *buf,
 {
 	struct motmdm_cdev *cdata = file->private_data;
 	size_t written = 0;
-	int err;
+	int err, flag = -ENOMSG;
 
 	if (cdata->disconnected)
 		return -EIO;
@@ -668,10 +676,21 @@ static ssize_t motmdm_cdev_write(struct file *file, const char __user *buf,
 
 		cdata->write_offset += n;
 		cdata->write_buf[cdata->write_offset] = '\0';
-		if (cdata->write_offset &&
-		    (cdata->write_buf[cdata->write_offset - 1] == '\n' ||
-		     cdata->write_buf[cdata->write_offset - 1] == '\r'))
-			packet = true;
+		if (cdata->write_offset) {
+			u8 last = cdata->write_buf[cdata->write_offset - 1];
+
+			switch (last) {
+			case 0x1a:	/* Continuation packets end with ^Z */
+				flag = -ENOENT;
+				/* Fallthrough */
+			case '\n':
+			case '\r':
+				packet = true;
+				break;
+			default:
+				break;
+			}
+		}
 
 		down_read(&cdata->rwsem);
 
@@ -681,7 +700,7 @@ static ssize_t motmdm_cdev_write(struct file *file, const char __user *buf,
 		}
 
 		if (packet) {
-			err = motmdm_cdev_write_packet(cdata);
+			err = motmdm_cdev_write_packet(cdata, flag);
 			if (err < 0)
 				goto err_write;
 
