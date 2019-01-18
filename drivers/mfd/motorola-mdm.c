@@ -756,6 +756,8 @@ static __poll_t motmdm_cdev_poll(struct file *file, poll_table *wait)
 
 	if (!kfifo_is_empty(&mot_dlci->read_fifo))
 		mask |= EPOLLIN | EPOLLRDNORM;
+	if (cdata->write_offset < cdata->write_buf_sz)
+		mask |= EPOLLOUT | EPOLLWRNORM;
 	if (cdata->disconnected)
 		mask |= EPOLLHUP;
 
