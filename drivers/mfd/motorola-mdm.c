@@ -260,6 +260,7 @@ static int motmdm_dlci_receive_buf(struct gsm_serdev_dlci *gsm_dlci,
 	const unsigned char *msg;
 	size_t msglen;
 	int id, err;
+	bool terminate = false;
 
 	if (len < (MOTMDM_ID_LEN + 1) || buf[0] != 'U')
 		return 0;
@@ -270,7 +271,18 @@ static int motmdm_dlci_receive_buf(struct gsm_serdev_dlci *gsm_dlci,
 
 	/* Strip out Motorola custom packet numbering */
 	msg = buf + MOTMDM_ID_LEN;
-	msglen = len - (MOTMDM_ID_LEN);
+	msglen = len - MOTMDM_ID_LEN;
+
+	/* Need a fixup for '\r\n' terminated lines? */
+	if (msglen && msg[msglen - 1] == '\n') {
+		if (msglen > 1 && msg[msglen - 2] != '\r') {
+			terminate = true;
+			msglen--;
+		} else if (msglen == 1) {
+			terminate = true;
+			msglen--;
+		}
+	}
 
 	if (mot_dlci->line == ddata->cfg->modem_dlci)
 		motmdm_read_state(mot_dlci, msg, msglen);
@@ -282,11 +294,13 @@ static int motmdm_dlci_receive_buf(struct gsm_serdev_dlci *gsm_dlci,
 			goto err_kfifo;
 		}
 
-		err = kfifo_in(&mot_dlci->read_fifo, "\r", 1);
-		if (err != 1)
-			err = -ENOSPC;
-
-		msglen++;
+		if (terminate) {
+			err = kfifo_in(&mot_dlci->read_fifo, "\r\n", 2);
+			if (err != 2)
+				err = -ENOSPC;
+			else
+				msglen += err;
+		}
 	}
 
 	err = msglen;
