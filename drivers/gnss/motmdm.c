@@ -197,6 +197,12 @@ static int motmdm_gnss_receive_data(struct motmdm_dlci *mot_dlci,
 		msglen = len - MOTMDM_GNSS_NMEA_LEN;
 
 		/*
+		 * Firmware bug: Strip out extra duplicate line break always
+		 * in the data
+		 */
+		msglen--;
+
+		/*
 		 * Firmware bug: Strip out extra data based on an
 		 * earlier line break in the data
 		 */
