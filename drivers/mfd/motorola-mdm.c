@@ -246,6 +246,36 @@ static void motmdm_read_state(struct motmdm_dlci *mot_dlci,
 	}
 }
 
+/* Fix line breaks for apps if needed and feed kfifo */
+static int motmdm_dlci_feed_kfifo(struct motmdm_dlci *mot_dlci,
+				  const unsigned char *buf,
+				  size_t len)
+{
+	int err, trim = 0;
+	size_t newlen = len;
+
+	if (len && buf[len - 1] == '\n') {
+		if (len > 1 && buf[len - 2] != '\r')
+			newlen--;
+		else if (len == 1)
+			newlen--;
+	}
+
+	err = kfifo_in(&mot_dlci->read_fifo, buf, newlen);
+	if (err != newlen)
+		return -ENOSPC;
+
+	if (newlen != len) {
+		err = kfifo_in(&mot_dlci->read_fifo, "\r\n", 2);
+		if (err != 2)
+			err = -ENOSPC;
+		else
+			newlen += err;
+	}
+
+	return newlen;
+}
+
 /*
  * Read handling for Motorola custom layering on top of TS 27.010
  */
@@ -260,7 +290,6 @@ static int motmdm_dlci_receive_buf(struct gsm_serdev_dlci *gsm_dlci,
 	const unsigned char *msg;
 	size_t msglen;
 	int id, err;
-	bool terminate = false;
 
 	if (len < (MOTMDM_ID_LEN + 1) || buf[0] != 'U')
 		return 0;
@@ -273,43 +302,22 @@ static int motmdm_dlci_receive_buf(struct gsm_serdev_dlci *gsm_dlci,
 	msg = buf + MOTMDM_ID_LEN;
 	msglen = len - MOTMDM_ID_LEN;
 
-	/* Need a fixup for '\r\n' terminated lines? */
-	if (msglen && msg[msglen - 1] == '\n') {
-		if (msglen > 1 && msg[msglen - 2] != '\r') {
-			terminate = true;
-			msglen--;
-		} else if (msglen == 1) {
-			terminate = true;
-			msglen--;
-		}
-	}
-
 	if (mot_dlci->line == ddata->cfg->modem_dlci)
 		motmdm_read_state(mot_dlci, msg, msglen);
-
-	if (kfifo_initialized(&mot_dlci->read_fifo)) {
-		err = kfifo_in(&mot_dlci->read_fifo, msg, msglen);
-		if (err != msglen) {
-			err = -ENOSPC;
-			goto err_kfifo;
-		}
-
-		if (terminate) {
-			err = kfifo_in(&mot_dlci->read_fifo, "\r\n", 2);
-			if (err != 2)
-				err = -ENOSPC;
-			else
-				msglen += err;
-		}
-	}
-
-	err = msglen;
 
 	/* Motorola custom data or a command ack? */
 	if (buf[MOTMDM_ID_LEN] == '~' && mot_dlci->receive_data)
 		mot_dlci->receive_data(mot_dlci, msg + 1, msglen - 1);
 	else if (mot_dlci->handle_command)
 		mot_dlci->handle_command(mot_dlci, id, msg, msglen);
+
+	if (kfifo_initialized(&mot_dlci->read_fifo)) {
+		err = motmdm_dlci_feed_kfifo(mot_dlci, msg, msglen);
+		if (err < 0)
+			goto err_kfifo;
+	}
+
+	err = msglen;
 
 	wake_up_interruptible(&mot_dlci->read_queue);
 
