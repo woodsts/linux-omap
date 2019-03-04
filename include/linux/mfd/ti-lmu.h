@@ -17,6 +17,7 @@
 #include <linux/notifier.h>
 #include <linux/regmap.h>
 #include <linux/gpio/consumer.h>
+#include <linux/pwm.h>
 
 /* Notifier event */
 #define LMU_EVENT_MONITOR_DONE		0x01
@@ -77,12 +78,18 @@ enum lm363x_regulator_id {
  * @dev:	Parent device pointer
  * @regmap:	Used for i2c communcation on accessing registers
  * @en_gpio:	GPIO for HWEN pin [Optional]
+ * @pwm:	PWM for module [Optional]
  * @notifier:	Notifier for reporting hwmon event
+ * @id:		Device ID
+ * @backlight_initialized: Global Backlight has been initialized
  */
 struct ti_lmu {
 	struct device *dev;
 	struct regmap *regmap;
 	struct gpio_desc *en_gpio;
+	struct pwm_device *pwm;
 	struct blocking_notifier_head notifier;
+	enum ti_lmu_id id;
+	bool backlight_initialized;
 };
 #endif

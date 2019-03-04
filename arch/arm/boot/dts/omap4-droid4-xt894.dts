@@ -383,20 +383,24 @@
 };
 
 &i2c1 {
-	lm3532@38 {
+	led-controller@38 {
 		compatible = "ti,lm3532";
 		reg = <0x38>;
 
 		enable-gpios = <&gpio6 12 GPIO_ACTIVE_HIGH>;
 
-		lcd_backlight: backlight {
-			compatible = "ti,lm3532-backlight";
+		lcd_backlight: bank0 {
+			label = "lcd";
+			ti,led-sources = <0>;
+			ti,ramp-up-ms = <1>;
+			ti,ramp-down-ms = <0>;
+		};
 
-			lcd {
-				led-sources = <0 1 2>;
-				ramp-up-msec = <1>;
-				ramp-down-msec = <0>;
-			};
+		keyboard_backlight: bank1 {
+			label = "keyboard";
+			ti,led-sources = <1>;
+			ti,ramp-up-msec = <1>;
+			ti,ramp-down-msec = <0>;
 		};
 	};
 };
