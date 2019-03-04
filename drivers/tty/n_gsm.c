@@ -39,6 +39,7 @@
 #include <linux/file.h>
 #include <linux/uaccess.h>
 #include <linux/module.h>
+#include <linux/serdev.h>
 #include <linux/timer.h>
 #include <linux/tty_flip.h>
 #include <linux/tty_driver.h>
@@ -50,6 +51,7 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/gsmmux.h>
+#include <linux/serdev-gsm.h>
 
 static int debug;
 module_param(debug, int, 0600);
@@ -143,8 +145,9 @@ struct gsm_dlci {
 	struct sk_buff *skb;	/* Frame being sent */
 	struct sk_buff_head skb_list;	/* Queued frames */
 	/* Data handling callback */
-	void (*data)(struct gsm_dlci *dlci, u8 *data, int len);
-	void (*prev_data)(struct gsm_dlci *dlci, u8 *data, int len);
+	void (*data)(struct gsm_dlci *dlci, const u8 *data, int len);
+	void (*prev_data)(struct gsm_dlci *dlci, const u8 *data, int len);
+	struct gsm_serdev_dlci *ops; /* serdev dlci ops, if used */
 	struct net_device *net; /* network interface, if created */
 };
 
@@ -179,6 +182,7 @@ struct gsm_control {
  */
 
 struct gsm_mux {
+	struct gsm_serdev *gsd;		/* Serial device bus data */
 	struct tty_struct *tty;		/* The tty our ldisc is bound to */
 	spinlock_t lock;
 	struct mutex mutex;
@@ -988,7 +992,7 @@ static void gsm_dlci_data_kick(struct gsm_dlci *dlci)
  *	Encode up and queue a UI/UIH frame containing our response.
  */
 
-static void gsm_control_reply(struct gsm_mux *gsm, int cmd, u8 *data,
+static void gsm_control_reply(struct gsm_mux *gsm, int cmd, const u8 *data,
 					int dlen)
 {
 	struct gsm_msg *msg;
@@ -1073,14 +1077,14 @@ static void gsm_process_modem(struct tty_struct *tty, struct gsm_dlci *dlci,
  *	and if need be stuff a break message down the tty.
  */
 
-static void gsm_control_modem(struct gsm_mux *gsm, u8 *data, int clen)
+static void gsm_control_modem(struct gsm_mux *gsm, const u8 *data, int clen)
 {
 	unsigned int addr = 0;
 	unsigned int modem = 0;
 	unsigned int brk = 0;
 	struct gsm_dlci *dlci;
 	int len = clen;
-	u8 *dp = data;
+	const u8 *dp = data;
 	struct tty_struct *tty;
 
 	while (gsm_read_ea(&addr, *dp++) == 0) {
@@ -1134,13 +1138,13 @@ static void gsm_control_modem(struct gsm_mux *gsm, u8 *data, int clen)
  *	this into the uplink tty if present
  */
 
-static void gsm_control_rls(struct gsm_mux *gsm, u8 *data, int clen)
+static void gsm_control_rls(struct gsm_mux *gsm, const u8 *data, int clen)
 {
 	struct tty_port *port;
 	unsigned int addr = 0;
 	u8 bits;
 	int len = clen;
-	u8 *dp = data;
+	const u8 *dp = data;
 
 	while (gsm_read_ea(&addr, *dp++) == 0) {
 		len--;
@@ -1189,7 +1193,7 @@ static void gsm_dlci_begin_close(struct gsm_dlci *dlci);
  */
 
 static void gsm_control_message(struct gsm_mux *gsm, unsigned int command,
-							u8 *data, int clen)
+						const u8 *data, int clen)
 {
 	u8 buf[1];
 	unsigned long flags;
@@ -1261,7 +1265,7 @@ static void gsm_control_message(struct gsm_mux *gsm, unsigned int command,
  */
 
 static void gsm_control_response(struct gsm_mux *gsm, unsigned int command,
-							u8 *data, int clen)
+						const u8 *data, int clen)
 {
 	struct gsm_control *ctrl;
 	unsigned long flags;
@@ -1553,7 +1557,7 @@ static void gsm_dlci_begin_close(struct gsm_dlci *dlci)
  *	open we shovel the bits down it, if not we drop them.
  */
 
-static void gsm_dlci_data(struct gsm_dlci *dlci, u8 *data, int clen)
+static void gsm_dlci_data(struct gsm_dlci *dlci, const u8 *data, int clen)
 {
 	/* krefs .. */
 	struct tty_port *port = &dlci->port;
@@ -1603,7 +1607,7 @@ static void gsm_dlci_data(struct gsm_dlci *dlci, u8 *data, int clen)
  *	and we divide up the work accordingly.
  */
 
-static void gsm_dlci_command(struct gsm_dlci *dlci, u8 *data, int len)
+static void gsm_dlci_command(struct gsm_dlci *dlci, const u8 *data, int len)
 {
 	/* See what command is involved */
 	unsigned int command = 0;
@@ -2214,6 +2218,424 @@ static struct gsm_mux *gsm_alloc_mux(void)
 	return gsm;
 }
 
+static void gsm_copy_config_values(struct gsm_mux *gsm,
+				   struct gsm_config *c)
+{
+	memset(c, 0, sizeof(*c));
+	c->adaption = gsm->adaption;
+	c->encapsulation = gsm->encoding;
+	c->initiator = gsm->initiator;
+	c->t1 = gsm->t1;
+	c->t2 = gsm->t2;
+	c->t3 = 0;	/* Not supported */
+	c->n2 = gsm->n2;
+	if (gsm->ftype == UIH)
+		c->i = 1;
+	else
+		c->i = 2;
+	pr_debug("Ftype %d i %d\n", gsm->ftype, c->i);
+	c->mru = gsm->mru;
+	c->mtu = gsm->mtu;
+	c->k = 0;
+}
+
+static int gsm_config(struct gsm_mux *gsm, struct gsm_config *c)
+{
+	int need_close = 0;
+	int need_restart = 0;
+
+	/* Stuff we don't support yet - UI or I frame transport, windowing */
+	if ((c->adaption != 1 && c->adaption != 2) || c->k)
+		return -EOPNOTSUPP;
+	/* Check the MRU/MTU range looks sane */
+	if (c->mru > MAX_MRU || c->mtu > MAX_MTU || c->mru < 8 || c->mtu < 8)
+		return -EINVAL;
+	if (c->n2 < 3)
+		return -EINVAL;
+	if (c->encapsulation > 1)	/* Basic, advanced, no I */
+		return -EINVAL;
+	if (c->initiator > 1)
+		return -EINVAL;
+	if (c->i == 0 || c->i > 2)	/* UIH and UI only */
+		return -EINVAL;
+	/*
+	 * See what is needed for reconfiguration
+	 */
+
+	/* Timing fields */
+	if (c->t1 != 0 && c->t1 != gsm->t1)
+		need_restart = 1;
+	if (c->t2 != 0 && c->t2 != gsm->t2)
+		need_restart = 1;
+	if (c->encapsulation != gsm->encoding)
+		need_restart = 1;
+	if (c->adaption != gsm->adaption)
+		need_restart = 1;
+	/* Requires care */
+	if (c->initiator != gsm->initiator)
+		need_close = 1;
+	if (c->mru != gsm->mru)
+		need_restart = 1;
+	if (c->mtu != gsm->mtu)
+		need_restart = 1;
+
+	/*
+	 * Close down what is needed, restart and initiate the new
+	 * configuration
+	 */
+
+	if (need_close || need_restart) {
+		int ret;
+
+		ret = gsm_disconnect(gsm);
+
+		if (ret)
+			return ret;
+	}
+	if (need_restart)
+		gsm_cleanup_mux(gsm);
+
+	gsm->initiator = c->initiator;
+	gsm->mru = c->mru;
+	gsm->mtu = c->mtu;
+	gsm->encoding = c->encapsulation;
+	gsm->adaption = c->adaption;
+	gsm->n2 = c->n2;
+
+	if (c->i == 1)
+		gsm->ftype = UIH;
+	else if (c->i == 2)
+		gsm->ftype = UI;
+
+	if (c->t1)
+		gsm->t1 = c->t1;
+	if (c->t2)
+		gsm->t2 = c->t2;
+
+	/*
+	 * FIXME: We need to separate activation/deactivation from adding
+	 * and removing from the mux array
+	 */
+	if (need_restart)
+		gsm_activate_mux(gsm);
+	if (gsm->initiator && need_close)
+		gsm_dlci_begin_open(gsm->dlci[0]);
+	return 0;
+}
+
+#ifdef CONFIG_SERIAL_DEV_BUS
+static int gsd_get_config(struct gsm_serdev *gsd, struct gsm_config *c)
+{
+	struct gsm_mux *gsm;
+
+	if (!gsd || !gsd->gsm)
+		return -ENODEV;
+
+	gsm = gsd->gsm;
+
+	if (!c)
+		return -EINVAL;
+
+	gsm_copy_config_values(gsm, c);
+
+	return 0;
+}
+
+static int gsd_set_config(struct gsm_serdev *gsd, struct gsm_config *c)
+{
+	struct gsm_mux *gsm;
+
+	if (!gsd || !gsd->serdev || !gsd->gsm)
+		return -ENODEV;
+
+	gsm = gsd->gsm;
+
+	if (!c)
+		return -EINVAL;
+
+	return gsm_config(gsm, c);
+}
+
+static struct gsm_dlci *gsd_dlci_get(struct gsm_serdev *gsd, int line,
+				     bool allocate)
+{
+	struct gsm_mux *gsm;
+	struct gsm_dlci *dlci;
+
+	if (!gsd || !gsd->gsm)
+		return ERR_PTR(-ENODEV);
+
+	gsm = gsd->gsm;
+
+	if (line < 1 || line >= 63)
+		return ERR_PTR(-EINVAL);
+
+	mutex_lock(&gsm->mutex);
+
+	if (gsm->dlci[line]) {
+		dlci = gsm->dlci[line];
+		goto unlock;
+	} else if (!allocate) {
+		dlci = ERR_PTR(-ENODEV);
+		goto unlock;
+	}
+
+	dlci = gsm_dlci_alloc(gsm, line);
+	if (!dlci) {
+		gsm = ERR_PTR(-ENOMEM);
+		goto unlock;
+	}
+
+	gsm->dlci[line] = dlci;
+
+unlock:
+	mutex_unlock(&gsm->mutex);
+
+	return dlci;
+}
+
+static void gsd_dlci_data(struct gsm_dlci *dlci, const u8 *buf, int len)
+{
+	struct gsm_mux *gsm = dlci->gsm;
+	struct gsm_serdev *gsd = gsm->gsd;
+
+	if (!gsd || !dlci->ops)
+		return;
+
+	switch (dlci->adaption) {
+	case 0:
+	case 1:
+		if (dlci->ops->receive_buf)
+			dlci->ops->receive_buf(dlci->ops, buf, len);
+		break;
+	default:
+		pr_warn("dlci%i adaption %i not yet implemented\n",
+			dlci->addr, dlci->adaption);
+		break;
+	}
+}
+
+static int gsd_write(struct gsm_serdev *gsd, struct gsm_serdev_dlci *sd,
+		     const u8 *buf, int len)
+{
+	struct gsm_mux *gsm;
+	struct gsm_dlci *dlci;
+	struct gsm_msg *msg;
+	int h, size, total_size = 0;
+	u8 *dp;
+
+	if (!gsd || !gsd->gsm)
+		return -ENODEV;
+
+	gsm = gsd->gsm;
+
+	dlci = gsd_dlci_get(gsd, sd->line, false);
+	if (IS_ERR(dlci))
+		return PTR_ERR(dlci);
+
+	h = dlci->adaption - 1;
+
+	if (len > gsm->mtu)
+		len = gsm->mtu;
+
+	size = len + h;
+
+	msg = gsm_data_alloc(gsm, dlci->addr, size, gsm->ftype);
+	if (!msg)
+		return -ENOMEM;
+
+	dp = msg->data;
+	switch (dlci->adaption) {
+	case 1:
+		break;
+	case 2:
+		*dp++ = gsm_encode_modem(dlci);
+		break;
+	}
+	memcpy(dp, buf, len);
+	__gsm_data_queue(dlci, msg);
+	total_size += size;
+
+	return total_size;
+}
+
+static void gsd_data_kick(struct gsm_serdev *gsd)
+{
+	struct gsm_mux *gsm;
+	unsigned long flags;
+
+	if (!gsd || !gsd->gsm)
+		return;
+
+	gsm = gsd->gsm;
+
+	spin_lock_irqsave(&gsm->tx_lock, flags);
+	gsm_data_kick(gsm);
+	spin_unlock_irqrestore(&gsm->tx_lock, flags);
+}
+
+static int gsd_register_dlci(struct gsm_serdev *gsd,
+			     struct gsm_serdev_dlci *ops)
+{
+	struct gsm_dlci *dlci;
+	struct gsm_mux *gsm;
+
+	if (!gsd || !gsd->gsm || !gsd->serdev)
+		return -ENODEV;
+
+	gsm = gsd->gsm;
+
+	if (!ops || !ops->line || !ops->receive_buf)
+		return -EINVAL;
+
+	dlci = gsd_dlci_get(gsd, ops->line, true);
+	if (IS_ERR(dlci))
+		return PTR_ERR(dlci);
+
+	if (dlci->state == DLCI_OPENING || dlci->state == DLCI_OPEN ||
+	    dlci->state == DLCI_CLOSING)
+		return -EBUSY;
+
+	mutex_lock(&dlci->mutex);
+	dlci->ops = ops;
+	dlci->modem_rx = 0;
+	dlci->prev_data = dlci->data;
+	dlci->data = gsd_dlci_data;
+	mutex_unlock(&dlci->mutex);
+
+	gsm_dlci_begin_open(dlci);
+
+	return 0;
+}
+
+static void gsd_unregister_dlci(struct gsm_serdev *gsd,
+				struct gsm_serdev_dlci *ops)
+{
+	struct gsm_mux *gsm;
+	struct gsm_dlci *dlci;
+
+	if (!gsd || !gsd->gsm || !gsd->serdev || !gsd->unregister_dlci)
+		return;
+
+	gsm = gsd->gsm;
+
+	if (!ops || !ops->line)
+		return;
+
+	dlci = gsd_dlci_get(gsd, ops->line, false);
+	if (IS_ERR(dlci))
+		return;
+
+	mutex_lock(&dlci->mutex);
+	gsm_destroy_network(dlci);
+	dlci->data = dlci->prev_data;
+	dlci->ops = NULL;
+	mutex_unlock(&dlci->mutex);
+
+	gsm_dlci_begin_close(dlci);
+}
+
+static int gsm_serdev_output(struct gsm_mux *gsm, u8 *data, int len)
+{
+	struct gsm_serdev *gsd = gsm->gsd;
+	struct serdev_device *serdev = gsm->gsd->serdev;
+	bool asleep;
+
+	asleep = atomic_read(&gsd->asleep);
+	if (asleep)
+		return -ENOSPC;
+
+	if (gsm->gsd->output)
+		return gsm->gsd->output(gsm->gsd, data, len);
+	else
+		return serdev_device_write_buf(serdev, data, len);
+}
+
+static int gsd_receive_buf(struct serdev_device *serdev, const u8 *data,
+			   size_t count)
+{
+	struct gsm_serdev *gsd = serdev_device_get_drvdata(serdev);
+	struct gsm_mux *gsm;
+	const unsigned char *dp;
+	int i;
+
+	if (WARN_ON(!gsd))
+		return 0;
+
+	gsm = gsd->gsm;
+
+	if (debug & 4)
+		print_hex_dump_bytes("gsd_receive_buf: ",
+				     DUMP_PREFIX_OFFSET,
+				     data, count);
+
+	for (i = count, dp = data; i; i--, dp++)
+		gsm->receive(gsm, *dp);
+
+	return count;
+}
+
+static void gsd_write_wakeup(struct serdev_device *serdev)
+{
+	serdev_device_write_wakeup(serdev);
+}
+
+static struct serdev_device_ops gsd_client_ops = {
+	.receive_buf = gsd_receive_buf,
+	.write_wakeup = gsd_write_wakeup,
+};
+
+int gsm_serdev_register_device(struct gsm_serdev *gsd)
+{
+	struct gsm_mux *gsm;
+	int error;
+
+	if (WARN(!gsd || !gsd->serdev || !gsd->output,
+		 "serdev and output must be initialized\n"))
+		return -EINVAL;
+
+	serdev_device_set_client_ops(gsd->serdev, &gsd_client_ops);
+
+	gsm = gsm_alloc_mux();
+	if (!gsm)
+		return -ENOMEM;
+
+	gsm->encoding = 1;
+	gsm->tty = NULL;
+	gsm->gsd = gsd;
+	atomic_set(&gsd->asleep, 0);
+	gsd->gsm = gsm;
+	gsd->get_config = gsd_get_config;
+	gsd->set_config = gsd_set_config;
+	gsd->register_dlci = gsd_register_dlci;
+	gsd->unregister_dlci = gsd_unregister_dlci;
+	gsm->output = gsm_serdev_output;
+	gsd->write = gsd_write;
+	gsd->kick = gsd_data_kick;
+	mux_get(gsd->gsm);
+
+	error = gsm_activate_mux(gsd->gsm);
+	if (error) {
+		gsm_cleanup_mux(gsd->gsm);
+		mux_put(gsd->gsm);
+
+		return error;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(gsm_serdev_register_device);
+
+void gsm_serdev_unregister_device(struct gsm_serdev *gsd)
+{
+	gsm_cleanup_mux(gsd->gsm);
+	mux_put(gsd->gsm);
+	gsd->gsm = NULL;
+}
+EXPORT_SYMBOL_GPL(gsm_serdev_unregister_device);
+
+#endif	/* CONFIG_SERIAL_DEV_BUS */
+
 /**
  *	gsmld_output		-	write to link
  *	@gsm: our mux
@@ -2495,89 +2917,6 @@ static __poll_t gsmld_poll(struct tty_struct *tty, struct file *file,
 	return mask;
 }
 
-static int gsmld_config(struct tty_struct *tty, struct gsm_mux *gsm,
-							struct gsm_config *c)
-{
-	int need_close = 0;
-	int need_restart = 0;
-
-	/* Stuff we don't support yet - UI or I frame transport, windowing */
-	if ((c->adaption != 1 && c->adaption != 2) || c->k)
-		return -EOPNOTSUPP;
-	/* Check the MRU/MTU range looks sane */
-	if (c->mru > MAX_MRU || c->mtu > MAX_MTU || c->mru < 8 || c->mtu < 8)
-		return -EINVAL;
-	if (c->n2 < 3)
-		return -EINVAL;
-	if (c->encapsulation > 1)	/* Basic, advanced, no I */
-		return -EINVAL;
-	if (c->initiator > 1)
-		return -EINVAL;
-	if (c->i == 0 || c->i > 2)	/* UIH and UI only */
-		return -EINVAL;
-	/*
-	 *	See what is needed for reconfiguration
-	 */
-
-	/* Timing fields */
-	if (c->t1 != 0 && c->t1 != gsm->t1)
-		need_restart = 1;
-	if (c->t2 != 0 && c->t2 != gsm->t2)
-		need_restart = 1;
-	if (c->encapsulation != gsm->encoding)
-		need_restart = 1;
-	if (c->adaption != gsm->adaption)
-		need_restart = 1;
-	/* Requires care */
-	if (c->initiator != gsm->initiator)
-		need_close = 1;
-	if (c->mru != gsm->mru)
-		need_restart = 1;
-	if (c->mtu != gsm->mtu)
-		need_restart = 1;
-
-	/*
-	 *	Close down what is needed, restart and initiate the new
-	 *	configuration
-	 */
-
-	if (need_close || need_restart) {
-		int ret;
-
-		ret = gsm_disconnect(gsm);
-
-		if (ret)
-			return ret;
-	}
-	if (need_restart)
-		gsm_cleanup_mux(gsm);
-
-	gsm->initiator = c->initiator;
-	gsm->mru = c->mru;
-	gsm->mtu = c->mtu;
-	gsm->encoding = c->encapsulation;
-	gsm->adaption = c->adaption;
-	gsm->n2 = c->n2;
-
-	if (c->i == 1)
-		gsm->ftype = UIH;
-	else if (c->i == 2)
-		gsm->ftype = UI;
-
-	if (c->t1)
-		gsm->t1 = c->t1;
-	if (c->t2)
-		gsm->t2 = c->t2;
-
-	/* FIXME: We need to separate activation/deactivation from adding
-	   and removing from the mux array */
-	if (need_restart)
-		gsm_activate_mux(gsm);
-	if (gsm->initiator && need_close)
-		gsm_dlci_begin_open(gsm->dlci[0]);
-	return 0;
-}
-
 static int gsmld_ioctl(struct tty_struct *tty, struct file *file,
 		       unsigned int cmd, unsigned long arg)
 {
@@ -2586,29 +2925,14 @@ static int gsmld_ioctl(struct tty_struct *tty, struct file *file,
 
 	switch (cmd) {
 	case GSMIOC_GETCONF:
-		memset(&c, 0, sizeof(c));
-		c.adaption = gsm->adaption;
-		c.encapsulation = gsm->encoding;
-		c.initiator = gsm->initiator;
-		c.t1 = gsm->t1;
-		c.t2 = gsm->t2;
-		c.t3 = 0;	/* Not supported */
-		c.n2 = gsm->n2;
-		if (gsm->ftype == UIH)
-			c.i = 1;
-		else
-			c.i = 2;
-		pr_debug("Ftype %d i %d\n", gsm->ftype, c.i);
-		c.mru = gsm->mru;
-		c.mtu = gsm->mtu;
-		c.k = 0;
+		gsm_copy_config_values(gsm, &c);
 		if (copy_to_user((void *)arg, &c, sizeof(c)))
 			return -EFAULT;
 		return 0;
 	case GSMIOC_SETCONF:
 		if (copy_from_user(&c, (void *)arg, sizeof(c)))
 			return -EFAULT;
-		return gsmld_config(tty, gsm, &c);
+		return gsm_config(gsm, &c);
 	default:
 		return n_tty_ioctl_helper(tty, file, cmd, arg);
 	}
@@ -2695,7 +3019,7 @@ static void gsm_mux_net_tx_timeout(struct net_device *net)
 }
 
 static void gsm_mux_rx_netchar(struct gsm_dlci *dlci,
-				   unsigned char *in_buf, int size)
+				const unsigned char *in_buf, int size)
 {
 	struct net_device *net = dlci->net;
 	struct sk_buff *skb;
