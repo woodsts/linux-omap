@@ -321,7 +321,7 @@ static int motmdm_dlci_receive_buf(struct gsm_serdev_dlci *gsm_dlci,
 
 	err = msglen;
 
-	wake_up_interruptible(&mot_dlci->read_queue);
+	wake_up(&mot_dlci->read_queue);
 
 err_kfifo:
 
@@ -895,7 +895,7 @@ static void motmdm_cdev_free_one(struct motmdm_cdev *cdata)
 	down_write(&cdata->rwsem);
 	cdata->disconnected = true;
 	if (cdata->count)
-		wake_up_interruptible(&mot_dlci->read_queue);
+		wake_up(&mot_dlci->read_queue);
 	up_write(&cdata->rwsem);
 
 	cdev_del(&cdata->cdev);
