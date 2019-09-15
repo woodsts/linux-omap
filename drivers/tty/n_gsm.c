@@ -2476,6 +2476,7 @@ static int gsd_register_dlci(struct gsm_serdev *gsd,
 {
 	struct gsm_dlci *dlci;
 	struct gsm_mux *gsm;
+	int retries;
 
 	if (!gsd || !gsd->gsm || !gsd->serdev)
 		return -ENODEV;
@@ -2501,6 +2502,22 @@ static int gsd_register_dlci(struct gsm_serdev *gsd,
 	mutex_unlock(&dlci->mutex);
 
 	gsm_dlci_begin_open(dlci);
+
+	/*
+	 * Allow some time for dlci to move to DLCI_OPEN state. Otherwise
+	 * the serdev consumer driver can start sending data too early during
+	 * the setup, and the response will be missed by gms_queue() if we
+	 * still have DLCI_CLOSED state.
+	 */
+	for (retries = 10; retries > 0; retries--) {
+		if (dlci->state == DLCI_OPEN)
+			break;
+		msleep(100);
+	}
+
+	if (!retries)
+		dev_dbg(&gsd->serdev->dev, "dlci%i not currently active\n",
+			dlci->addr);
 
 	return 0;
 }
