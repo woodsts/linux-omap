@@ -231,8 +231,9 @@ static void cpcap_usb_detect(struct work_struct *work)
 			goto out_err;
 
 		error = regmap_update_bits(ddata->reg, CPCAP_REG_USBC3,
-					   CPCAP_BIT_VBUSSTBY_EN,
-					   CPCAP_BIT_VBUSSTBY_EN);
+					   CPCAP_BIT_VBUSSTBY_EN |
+					   CPCAP_BIT_VBUSEN_SPI,
+					   CPCAP_BIT_VBUSEN_SPI);
 		if (error)
 			goto out_err;
 
@@ -240,7 +241,8 @@ static void cpcap_usb_detect(struct work_struct *work)
 	}
 
 	error = regmap_update_bits(ddata->reg, CPCAP_REG_USBC3,
-				   CPCAP_BIT_VBUSSTBY_EN, 0);
+				   CPCAP_BIT_VBUSSTBY_EN |
+				   CPCAP_BIT_VBUSEN_SPI, 0);
 	if (error)
 		goto out_err;
 
@@ -274,12 +276,12 @@ static void cpcap_usb_detect(struct work_struct *work)
 		return;
 	}
 
-	/* Default to debug UART mode */
-	error = cpcap_usb_set_uart_mode(ddata);
+	error = musb_mailbox(MUSB_VBUS_OFF);
 	if (error)
 		goto out_err;
 
-	error = musb_mailbox(MUSB_VBUS_OFF);
+	/* Default to debug UART mode */
+	error = cpcap_usb_set_uart_mode(ddata);
 	if (error)
 		goto out_err;
 
