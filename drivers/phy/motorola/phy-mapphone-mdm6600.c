@@ -200,7 +200,7 @@ static void phy_mdm6600_status(struct work_struct *work)
 	struct phy_mdm6600 *ddata;
 	struct device *dev;
 	DECLARE_BITMAP(values, PHY_MDM6600_NR_STATUS_LINES);
-	int error, i, val = 0;
+	int error;
 
 	ddata = container_of(work, struct phy_mdm6600, status_work.work);
 	dev = ddata->dev;
@@ -212,16 +212,11 @@ static void phy_mdm6600_status(struct work_struct *work)
 	if (error)
 		return;
 
-	for (i = 0; i < PHY_MDM6600_NR_STATUS_LINES; i++) {
-		val |= test_bit(i, values) << i;
-		dev_dbg(ddata->dev, "XXX %s: i: %i values[i]: %i val: %i\n",
-			__func__, i, test_bit(i, values), val);
-	}
-	ddata->status = values[0];
+	ddata->status = values[0] & ((1 << PHY_MDM6600_NR_STATUS_LINES) - 1);
 
 	dev_info(dev, "modem status: %i %s\n",
 		 ddata->status,
-		 phy_mdm6600_status_name[ddata->status & 7]);
+		 phy_mdm6600_status_name[ddata->status]);
 	complete(&ddata->ack);
 }
 
@@ -248,10 +243,24 @@ static irqreturn_t phy_mdm6600_wakeirq_thread(int irq, void *data)
 {
 	struct phy_mdm6600 *ddata = data;
 	struct gpio_desc *mode_gpio1;
+	int error, wakeup;
 
 	mode_gpio1 = ddata->mode_gpios->desc[PHY_MDM6600_MODE1];
-	dev_dbg(ddata->dev, "OOB wake on mode_gpio1: %i\n",
-		gpiod_get_value(mode_gpio1));
+	wakeup = gpiod_get_value(mode_gpio1);
+	if (!wakeup)
+		return IRQ_NONE;
+
+	dev_dbg(ddata->dev, "OOB wake on mode_gpio1: %i\n", wakeup);
+	error = pm_runtime_get_sync(ddata->dev);
+	if (error < 0) {
+		pm_runtime_put_noidle(ddata->dev);
+
+		return IRQ_NONE;
+	}
+
+	/* Just wake-up and kick the autosuspend timer */
+	pm_runtime_mark_last_busy(ddata->dev);
+	pm_runtime_put_autosuspend(ddata->dev);
 
 	return IRQ_HANDLED;
 }
