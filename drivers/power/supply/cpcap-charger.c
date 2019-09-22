@@ -636,9 +636,12 @@ static void cpcap_usb_detect(struct work_struct *work)
 	case CPCAP_CHARGER_CHARGING:
 		if (s.chrgcurr2)
 			break;
-		cpcap_charger_disconnect(ddata, CPCAP_CHARGER_DONE,
-					 HZ * 5);
-		return;
+		if (s.chrgcurr1 && s.vbusvld) {
+			cpcap_charger_disconnect(ddata, CPCAP_CHARGER_DONE,
+						 HZ * 5);
+			return;
+		}
+		break;
 	case CPCAP_CHARGER_DONE:
 		if (!s.chrgcurr2)
 			break;
