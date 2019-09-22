@@ -139,10 +139,10 @@ static void omap_musb_set_mailbox(struct omap2430_glue *glue)
 		dev_dbg(musb->controller, "VBUS Disconnect\n");
 
 		musb->xceiv->last_event = USB_EVENT_NONE;
+		musb_set_peripheral(musb);
 		otg_set_vbus(musb->xceiv->otg, 0);
 		omap_control_usb_set_mode(glue->control_otghs,
 			USB_MODE_DISCONNECT);
-		musb_set_peripheral(musb);
 		break;
 	default:
 		dev_dbg(musb->controller, "ID float\n");
