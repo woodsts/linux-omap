@@ -2450,7 +2450,7 @@ static int gsd_write(struct gsm_serdev *gsd, struct gsm_serdev_dlci *sd,
 		break;
 	}
 	memcpy(dp, buf, len);
-	__gsm_data_queue(dlci, msg);
+	gsm_data_queue(dlci, msg);
 	total_size += size;
 
 	return total_size;
