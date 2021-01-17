@@ -61,6 +61,7 @@
 			io-channel-names = "battdetb", "battp",
 					   "vbus", "chg_isense",
 					   "batti";
+			battery = <&cpcap_battery>;
 		};
 
 		cpcap_regulator: regulator {
